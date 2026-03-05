@@ -43,7 +43,7 @@ export default function PrivacyPage() {
         {
             icon: Globe,
             title: "Transferencias de Datos",
-            content: "Sus datos pueden ser transferidos a: Stripe Inc. (procesamiento de pagos, EE.UU.), Google Cloud Platform (alojamiento de servidores), MongoDB Atlas (base de datos). Todas las transferencias cumplen con estándares internacionales de protección de datos y cuentan con acuerdos de confidencialidad."
+            content: "Sus datos pueden ser transferidos a: Stripe Inc. (procesamiento de pagos, EE.UU.), Google Cloud Platform (alojamiento de servidores), Supabase (base de datos). Todas las transferencias cumplen con estándares internacionales de protección de datos y cuentan con acuerdos de confidencialidad."
         },
         {
             icon: Lock,
