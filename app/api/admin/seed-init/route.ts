@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
 import { supabase } from '@/app/lib/supabaseClient';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     try {
         const adminEmail = 'admin@hormiruta.com';
