@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/app/lib/mongodb';
-import User from '@/app/models/User';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/lib/auth';
+import { supabase } from '@/app/lib/supabaseClient';
 
 export async function GET(req: Request) {
     try {
@@ -15,18 +14,18 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const query = searchParams.get('q') || '';
 
-        await dbConnect();
+        let supabaseQuery = supabase
+            .from('users')
+            .select('id, email, name, image, role, plan, subscription_status, created_at')
+            .order('created_at', { ascending: false });
 
-        const filter = query
-            ? {
-                $or: [
-                    { name: { $regex: query, $options: 'i' } },
-                    { email: { $regex: query, $options: 'i' } }
-                ]
-            }
-            : {};
+        if (query) {
+            supabaseQuery = supabaseQuery.or(`name.ilike.%${query}%,email.ilike.%${query}%`);
+        }
 
-        const users = await User.find(filter).select('-password').sort({ createdAt: -1 });
+        const { data: users, error } = await supabaseQuery;
+
+        if (error) throw error;
 
         return NextResponse.json(users);
     } catch (error) {
@@ -34,3 +33,4 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+

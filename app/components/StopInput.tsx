@@ -314,6 +314,54 @@ const StopInput = ({ onAddStop, onUpdateStop, onOptimize, onCancel, initialData,
                 </AnimatePresence>
             </div>
 
+            {/* Quick Registration / Optimization Buttons */}
+            <div className="flex gap-3">
+                <button
+                    onClick={handleSave}
+                    disabled={!address}
+                    className="flex-1 py-3.5 bg-info text-dark font-black uppercase text-[10px] tracking-widest rounded-xl shadow-[0_10px_30px_rgba(49,204,236,0.2)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:shadow-none flex items-center justify-center gap-2"
+                >
+                    <Plus className="w-4 h-4" />
+                    {isEditing ? 'Guardar' : 'Añadir Parada'}
+                </button>
+
+                {onOptimize && !isEditing && (
+                    <button
+                        onClick={() => {
+                            if (!address) return;
+                            const stopData = {
+                                id: initialData?.id || Math.random().toString(36).substr(2, 9),
+                                address,
+                                customerName,
+                                phone,
+                                priority,
+                                timeWindow: arrivalTimeType === 'SPECIFIC' ? timeWindow : 'Cualquier hora',
+                                notes,
+                                locator,
+                                numPackages,
+                                taskType,
+                                arrivalTimeType,
+                                estimatedDuration,
+                                lat: selectedCoords?.lat || initialData?.lat || 19.43,
+                                lng: selectedCoords?.lng || initialData?.lng || -99.13,
+                                isCompleted: initialData?.isCompleted || false,
+                                isFailed: initialData?.isFailed || false,
+                                isCurrent: initialData?.isCurrent || false,
+                                order: initialData?.order || 1,
+                                licensePlate,
+                                boxes
+                            };
+                            onOptimize(stopData);
+                        }}
+                        disabled={!address}
+                        className="flex-1 py-3.5 bg-darker border border-info/30 text-info font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-info/10 active:scale-95 transition-all disabled:opacity-30 flex items-center justify-center gap-2"
+                    >
+                        <RotateCw className="w-4 h-4 text-info" />
+                        Optimizar
+                    </button>
+                )}
+            </div>
+
             <button
                 onClick={() => setShowDetails(!showDetails)}
                 className="text-[10px] font-black text-info/60 uppercase tracking-[0.3em] flex items-center gap-2 px-2 hover:text-info transition-colors italic"
@@ -535,59 +583,17 @@ const StopInput = ({ onAddStop, onUpdateStop, onOptimize, onCancel, initialData,
                 )}
             </AnimatePresence>
 
-            <div className="flex flex-col gap-3 pt-6">
-                <div className="flex gap-4">
-                    {onCancel && (
-                        <button
-                            onClick={onCancel}
-                            className="flex-1 py-4 bg-white/5 text-white/40 font-black uppercase text-[10px] tracking-widest rounded-2xl border border-white/5 hover:bg-white/10 hover:text-white transition-all active:scale-95"
-                        >
-                            Cancelar
-                        </button>
-                    )}
+            {onCancel && (
+                <div className="pt-2">
                     <button
-                        onClick={handleSave}
-                        disabled={!address}
-                        className="flex-[2] py-4 bg-info text-dark font-black uppercase text-[10px] tracking-widest rounded-2xl shadow-[0_10px_30px_rgba(49,204,236,0.3)] hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:shadow-none"
+                        onClick={onCancel}
+                        className="w-full py-4 bg-white/5 text-white/40 font-black uppercase text-[10px] tracking-widest rounded-2xl border border-white/5 hover:bg-white/10 hover:text-white transition-all active:scale-95 flex items-center justify-center gap-2"
                     >
-                        {isEditing ? 'Guardar Cambios' : 'Registrar Parada'}
+                        <X className="w-4 h-4" />
+                        Cancelar Operación
                     </button>
                 </div>
-
-                {onOptimize && !isEditing && (
-                    <button
-                        onClick={() => {
-                            if (!address) return;
-                            const stopData = {
-                                id: initialData?.id || Math.random().toString(36).substr(2, 9),
-                                address,
-                                customerName,
-                                phone,
-                                priority,
-                                timeWindow: arrivalTimeType === 'SPECIFIC' ? timeWindow : 'Cualquier hora',
-                                notes,
-                                locator,
-                                numPackages,
-                                taskType,
-                                arrivalTimeType,
-                                estimatedDuration,
-                                lat: selectedCoords?.lat || initialData?.lat || 19.43,
-                                lng: selectedCoords?.lng || initialData?.lng || -99.13,
-                                isCompleted: initialData?.isCompleted || false,
-                                isCurrent: initialData?.isCurrent || false,
-                                order: initialData?.order || 1,
-                                licensePlate,
-                                boxes
-                            };
-                            onOptimize(stopData);
-                        }}
-                        className="w-full py-4 bg-white/5 border border-info/20 text-info font-black uppercase text-[10px] tracking-widest rounded-2xl flex items-center justify-center gap-2 hover:bg-info/10 transition-all active:scale-95"
-                    >
-                        <RotateCw className="w-4 h-4 animate-spin-slow" />
-                        Registrar y Optimizar Ruta
-                    </button>
-                )}
-            </div>
+            )}
         </div>
     );
 };

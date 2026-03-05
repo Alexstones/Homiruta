@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/app/lib/mongodb';
-import User from '@/app/models/User';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/lib/auth';
+import { supabase } from '@/app/lib/supabaseClient';
 
 export async function POST(req: Request) {
     try {
@@ -13,24 +12,24 @@ export async function POST(req: Request) {
 
         const { lat, lng, vehicleType } = await req.json();
 
-        await dbConnect();
-
         const updateData: any = {
-            lastLocation: {
+            last_location: {
                 lat,
                 lng,
-                updatedAt: new Date()
+                updatedAt: new Date().toISOString()
             }
         };
 
         if (vehicleType) {
-            updateData.vehicleType = vehicleType;
+            updateData.vehicle_type = vehicleType;
         }
 
-        await User.findByIdAndUpdate(
-            (session.user as any).id,
-            updateData
-        );
+        const { error } = await supabase
+            .from('users')
+            .update(updateData)
+            .eq('id', (session.user as any).id);
+
+        if (error) throw error;
 
         return NextResponse.json({ success: true });
     } catch (error) {
@@ -41,12 +40,17 @@ export async function POST(req: Request) {
 
 export async function GET() {
     try {
-        await dbConnect();
-        // Obtener usuarios activos en los últimos 10 minutos para el mapa "tipo Waze"
-        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-        const drivers = await User.find({
-            'lastLocation.updatedAt': { $gte: tenMinutesAgo }
-        }).select('name email lastLocation vehicleType');
+        // Obtener usuarios activos en los últimos 10 minutos
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+
+        // Supabase query for JSONB date filtering
+        const { data: drivers, error } = await supabase
+            .from('users')
+            .select('id, name, email, last_location, vehicle_type')
+            .not('last_location', 'is', null)
+            .gt('last_location->>updatedAt', tenMinutesAgo);
+
+        if (error) throw error;
 
         return NextResponse.json(drivers);
     } catch (error) {
@@ -54,3 +58,4 @@ export async function GET() {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+

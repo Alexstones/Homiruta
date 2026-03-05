@@ -22,7 +22,9 @@ import BulkImport from '../components/BulkImport';
 import SOSConfig from '../components/SOSConfig';
 import SavedRoutes from '../components/SavedRoutes';
 import PricingModal from '../components/PricingModal';
+import SubscriptionManager from '../components/SubscriptionManager';
 import BottomSheet from '../components/BottomSheet';
+import RevolverBlocks from '../components/RevolverBlocks';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { cn } from '../lib/utils';
@@ -41,7 +43,7 @@ export default function Dashboard() {
 
     const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [activeModal, setActiveModal] = useState<'add-stop' | 'edit-stop' | 'expense' | 'bulk-import' | 'settings' | 'saved-routes' | 'save-route' | 'new-route-confirm' | 'route-summary' | 'navigation-choice' | 'profile' | 'welcome-map-preference' | 'marker-actions' | 'pricing' | null>(null);
+    const [activeModal, setActiveModal] = useState<'add-stop' | 'edit-stop' | 'expense' | 'bulk-import' | 'settings' | 'saved-routes' | 'save-route' | 'new-route-confirm' | 'route-summary' | 'navigation-choice' | 'profile' | 'welcome-map-preference' | 'marker-actions' | 'pricing' | 'sos-config' | 'subscription' | null>(null);
     const [routeName, setRouteName] = useState('');
     const [routeSummary, setRouteSummary] = useState<{ distance: number, time: string, completedStops: number } | null>(null);
     const [routeDate, setRouteDate] = useState(new Date().toISOString().split('T')[0]);
@@ -137,7 +139,7 @@ export default function Dashboard() {
     }, [syncWithServer]);
 
     // Pro check based on session
-    const isPro = (session?.user as any)?.plan === 'premium' || (session?.user as any)?.plan === 'elite';
+    const isPro = (session?.user as any)?.plan === 'premium' || (session?.user as any)?.plan === 'fleet' || (session?.user as any)?.plan === 'elite';
 
     /* useEffect(() => {
          // Future: Sync from API if session is stale
@@ -441,33 +443,35 @@ export default function Dashboard() {
         setNotification('Ruta invertida correctamente');
     };
 
+    const handleCloseModal = useCallback(() => {
+        if (activeModal !== null) {
+            const wasMenuRelated = ['profile', 'settings', 'saved-routes', 'bulk-import', 'sos-config', 'pricing', 'subscription'].includes(activeModal as string);
+            setActiveModal(null);
+            setActiveStop(null);
+
+            // Si era una opción del menú móvil, lo reabrimos para mejorar el flujo exploratorio
+            if (wasMenuRelated && window.innerWidth < 1024) {
+                setIsMobileMenuOpen(true);
+            }
+            return true;
+        }
+        if (isMobileMenuOpen) {
+            setIsMobileMenuOpen(false);
+            return true;
+        }
+        if (viewMode === 'list') {
+            setViewMode('map');
+            return true;
+        }
+        return false;
+    }, [activeModal, isMobileMenuOpen, viewMode]);
+
     // --- MANEJO DEL BOTÓN ATRÁS (ANDROID / WEB) ---
     useEffect(() => {
         if (typeof window === 'undefined') return;
 
         // Función centralizada para cerrar overlays
-        const handleBackAction = () => {
-            if (activeModal !== null) {
-                const wasMenuRelated = ['profile', 'settings', 'saved-routes', 'bulk-import'].includes(activeModal as string);
-                setActiveModal(null);
-                setActiveStop(null);
-
-                // Si era una opción del menú móvil, lo reabrimos para mejorar el flujo exploratorio
-                if (wasMenuRelated && window.innerWidth < 1024) {
-                    setIsMobileMenuOpen(true);
-                }
-                return true;
-            }
-            if (isMobileMenuOpen) {
-                setIsMobileMenuOpen(false);
-                return true;
-            }
-            if (viewMode === 'list') {
-                setViewMode('map');
-                return true;
-            }
-            return false;
-        };
+        const handleBackAction = handleCloseModal;
 
         // 1. Lógica para Navegador/Web (popstate)
         const onPopState = (e: PopStateEvent) => {
@@ -547,6 +551,7 @@ export default function Dashboard() {
             return newStops;
         });
         setNavigationTargetId(prev => prev === id ? null : prev);
+        setActiveStop((prev: any) => prev?.id === id ? null : prev);
         setNotification(isFailed ? '⚠️ Parada marcada como FALLIDA' : '✅ Entrega REALIZADA con éxito');
     }, []);
 
@@ -739,6 +744,7 @@ export default function Dashboard() {
         }
 
         setIsOptimizing(true);
+        setViewMode('map'); // Cerrar el panel o la vista de lista suavemente antes de cargar
         setNotification('Optimizando ruta con tráfico real...');
         try {
             const response = await fetch('/api/optimize', {
@@ -779,7 +785,6 @@ export default function Dashboard() {
             setNotification('Error de conexión con el optimizador');
         } finally {
             setIsOptimizing(false);
-            setViewMode('map'); // Regresar al mapa automáticamente después de cualquier optimización
         }
     };
     const handleQuickNavigation = () => {
@@ -1168,6 +1173,7 @@ export default function Dashboard() {
                         {[
                             { icon: LayoutDashboard, label: 'Panel de Control', active: activeModal === null && viewMode === 'map' },
                             { icon: User, label: 'Mis Datos / Perfil', active: activeModal === 'profile', onClick: () => setActiveModal('profile') },
+                            { icon: ShieldAlert, label: 'Alerta SOS', active: activeModal === 'sos-config', onClick: () => setActiveModal('sos-config') },
                             { icon: List, label: 'Ver Itinerario', active: viewMode === 'list', onClick: () => setViewMode(viewMode === 'map' ? 'list' : 'map') },
                             { icon: History, label: 'Mis Rutas', active: activeModal === 'saved-routes', onClick: () => setActiveModal('saved-routes') },
                             { icon: Upload, label: 'Importación Masiva', active: activeModal === 'bulk-import', onClick: () => setActiveModal('bulk-import') },
@@ -1282,6 +1288,36 @@ export default function Dashboard() {
                     )}
                 </AnimatePresence>
 
+                {/* Optimization Loader Overlay - Prevents flicker/flash */}
+                <AnimatePresence>
+                    {isOptimizing && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="absolute inset-0 z-[95] bg-darker/80 backdrop-blur-md flex items-center justify-center"
+                        >
+                            <motion.div
+                                initial={{ scale: 0.8, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.8, opacity: 0 }}
+                                className="flex flex-col items-center gap-6"
+                            >
+                                <motion.div
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                    className="w-16 h-16 border-4 border-info/20 border-t-info rounded-full"
+                                />
+                                <div className="text-center">
+                                    <p className="text-info font-black text-xs uppercase tracking-[0.3em] mb-2">Optimizando Ruta</p>
+                                    <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Calculando tráfico real...</p>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {/* Mobile Header - Cleaner */}
                 <header className="lg:hidden bg-darker/80 backdrop-blur-2xl py-4 px-6 shadow-2xl z-40 flex justify-between items-center border-b border-white/5">
                     <Link href="/pricing" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
@@ -1344,6 +1380,27 @@ export default function Dashboard() {
                             origin={originPoint}
                             returnToStart={returnToStart}
                         />
+
+                        {/* Loader de Optimización (Framer Motion) */}
+                        <AnimatePresence>
+                            {isOptimizing && (
+                                <motion.div
+                                    initial={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+                                    animate={{ opacity: 1, backdropFilter: 'blur(10px)' }}
+                                    exit={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+                                    className="absolute inset-0 z-[80] bg-darker/60 flex flex-col items-center justify-center gap-4"
+                                >
+                                    <div className="w-20 h-20 rounded-full bg-info/10 flex items-center justify-center border border-info/30 shadow-[0_0_30px_rgba(49,204,236,0.3)]">
+                                        <RefreshCw className="w-10 h-10 text-info animate-spin" />
+                                    </div>
+                                    <h3 className="text-info font-black uppercase tracking-widest text-sm text-center">
+                                        Calculando Ruta
+                                        <br />
+                                        <span className="text-[10px] text-white/50">Optimizando tráfico y distancias...</span>
+                                    </h3>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
                         {/* Top-aligned Vehicle Selector Carousel */}
                         <AnimatePresence>
@@ -1425,6 +1482,17 @@ export default function Dashboard() {
                             >
                                 <RefreshCw className={cn("w-3 h-3 lg:w-4 lg:h-4", returnToStart && "animate-spin-slow")} />
                                 <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest">Modo Circuito</span>
+                            </button>
+
+                            <button
+                                onClick={() => setAvoidTolls(!avoidTolls)}
+                                className={cn(
+                                    "flex items-center gap-2 px-3 lg:px-5 py-2 lg:py-2.5 rounded-xl lg:rounded-2xl border border-white/10 shadow-2xl backdrop-blur-2xl transition-all w-fit",
+                                    avoidTolls ? "bg-info/20 text-info border-info/40 shadow-[0_0_20px_rgba(49,204,236,0.2)]" : "bg-black/60 text-white/40 hover:bg-black/80"
+                                )}
+                            >
+                                <Shield className={cn("w-3 h-3 lg:w-4 lg:h-4", avoidTolls ? "text-info" : "text-white/20")} />
+                                <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest">Evitar Peajes</span>
                             </button>
 
                             {navigationTargetId && (
@@ -1515,7 +1583,7 @@ export default function Dashboard() {
                     <BottomSheet
                         isOpen={viewMode === 'list' && (typeof window === 'undefined' || window.innerWidth <= 1024)}
                         onClose={() => setViewMode('map')}
-                        title="Itinerario"
+                        title="Tu Itinerario"
                         collapsedContent={
                             <div className="flex items-center justify-between w-full">
                                 <div className="flex items-center gap-3">
@@ -1551,54 +1619,147 @@ export default function Dashboard() {
                             </div>
                         }
                     >
-                        <div className="space-y-6 mt-4">
-                            {/* Actions inside expanded sheet - MODIFIED TO BE SMALLER AND SLEEKER */}
-                            <div className="grid grid-cols-3 gap-2">
-                                <button
-                                    onClick={() => optimizeRoute()}
-                                    disabled={isOptimizing || stops.length < 2}
-                                    className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 bg-white/5 rounded-xl border border-white/5 active:scale-95 transition-all"
-                                >
-                                    <RefreshCw className={cn("w-4 h-4 text-info", isOptimizing && "animate-spin")} />
-                                    <span className="text-[7px] font-black uppercase text-white/40 tracking-tighter">Optimizar</span>
-                                </button>
-                                <button
-                                    onClick={handleQuickNavigation}
-                                    className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 bg-info/10 rounded-xl border border-info/20 active:scale-95 transition-all"
-                                >
-                                    <Navigation className="w-4 h-4 text-info" />
-                                    <span className="text-[7px] font-black uppercase text-info tracking-tighter">Navegar</span>
-                                </button>
-                                <button
-                                    onClick={handleFinishRoute}
-                                    disabled={stops.length === 0}
-                                    className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 bg-green-500/10 rounded-xl border border-green-500/20 active:scale-95 transition-all"
-                                >
-                                    <CheckCircle className="w-4 h-4 text-green-500" />
-                                    <span className="text-[7px] font-black uppercase text-green-500 tracking-tighter">Finalizar</span>
-                                </button>
-                            </div>
+                        <RevolverBlocks
+                            className="mt-4"
+                            block1={
+                                <div className="space-y-8">
+                                    {/* Contador de Progreso Ultra-Visual */}
+                                    <div className="relative pt-4">
+                                        <div className="flex justify-between items-end mb-4 px-2">
+                                            <div>
+                                                <p className="text-[10px] font-black text-white/20 uppercase tracking-[0.4em] mb-1">Estado de Misión</p>
+                                                <h4 className="text-4xl font-black text-white italic tracking-tighter">
+                                                    {stops.filter(s => s.isCompleted).length}
+                                                    <span className="text-white/20 mx-2">/</span>
+                                                    {stops.length}
+                                                </h4>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-black text-info uppercase tracking-widest mb-1">Efectividad</p>
+                                                <p className="text-xl font-black text-white italic">
+                                                    {stops.length > 0 ? Math.round((stops.filter(s => s.isCompleted).length / stops.length) * 100) : 0}%
+                                                </p>
+                                            </div>
+                                        </div>
 
-                            <Timeline
-                                stops={stops}
-                                onReorder={handleReorder}
-                                onNavigate={(stop: any) => {
-                                    setActiveStop(stop);
-                                    setActiveModal('navigation-choice');
-                                    setIsGpsActive(true);
-                                    setMapCenter({ lat: stop.lat, lng: stop.lng } as any);
-                                    setNotification(`Selecciona Navegador para ${stop.address || 'destino'}`);
-                                }}
-                                onEdit={(stop: any) => {
-                                    setActiveStop(stop);
-                                    setActiveModal('edit-stop');
-                                }}
-                                onComplete={handleCompleteStop}
-                                onDuplicate={handleDuplicateStop}
-                                onRemove={handleRemoveStop}
-                                onRevert={handleRevertStop}
-                            />
-                        </div>
+                                        {/* Barra de Progreso */}
+                                        <div className="h-4 bg-white/5 rounded-full overflow-hidden border border-white/5 p-1">
+                                            <motion.div
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${(stops.filter(s => s.isCompleted).length / (stops.length || 1)) * 100}%` }}
+                                                className="h-full bg-gradient-to-r from-info/40 via-info to-info rounded-full shadow-[0_0_20px_rgba(49,204,236,0.3)]"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Acciones del Bloque 1 */}
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <button
+                                            onClick={handleQuickNavigation}
+                                            className="group relative flex items-center justify-between p-6 bg-info text-dark rounded-[32px] overflow-hidden transition-all active:scale-95 shadow-xl shadow-info/10"
+                                        >
+                                            <div className="relative z-10 flex flex-col items-start">
+                                                <span className="text-[10px] font-black uppercase tracking-[0.3em] mb-1 opacity-60">Siguiente Destino</span>
+                                                <span className="text-xl font-black uppercase italic tracking-tighter">Iniciar Navegación</span>
+                                            </div>
+                                            <Navigation className="w-10 h-10 relative z-10 opacity-30 group-hover:scale-110 transition-transform" />
+                                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                                        </button>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <button
+                                                onClick={() => optimizeRoute()}
+                                                disabled={isOptimizing || stops.length < 2}
+                                                className="flex flex-col items-center justify-center gap-3 p-6 bg-white/5 border border-white/10 rounded-[32px] hover:bg-white/10 transition-all active:scale-95 disabled:opacity-20"
+                                            >
+                                                <RefreshCw className={cn("w-6 h-6 text-info", isOptimizing && "animate-spin")} />
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-white/60">Optimizar</span>
+                                            </button>
+
+                                            <button
+                                                onClick={handleFinishRoute}
+                                                disabled={stops.length === 0}
+                                                className="flex flex-col items-center justify-center gap-3 p-6 bg-green-500/10 border border-green-500/20 rounded-[32px] hover:bg-green-500/20 transition-all active:scale-95 disabled:opacity-20"
+                                            >
+                                                <CheckCircle className="w-6 h-6 text-green-500" />
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-green-500">Finalizar</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            block2={
+                                <Timeline
+                                    stops={stops}
+                                    onReorder={handleReorder}
+                                    onNavigate={(stop: any) => {
+                                        setActiveStop(stop);
+                                        setActiveModal('navigation-choice');
+                                        setIsGpsActive(true);
+                                        setMapCenter({ lat: stop.lat, lng: stop.lng } as any);
+                                        setNotification(`Selecciona Navegador para ${stop.address || 'destino'}`);
+                                    }}
+                                    onEdit={(stop: any) => {
+                                        setActiveStop(stop);
+                                        setActiveModal('edit-stop');
+                                    }}
+                                    onComplete={handleCompleteStop}
+                                    onDuplicate={handleDuplicateStop}
+                                    onRemove={handleRemoveStop}
+                                    onRevert={handleRevertStop}
+                                />
+                            }
+                            block3={
+                                <div className="flex flex-col items-center justify-center gap-6 py-8">
+                                    {/* Circular Progress */}
+                                    <div className="relative w-40 h-40">
+                                        <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+                                            <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+                                            <motion.circle
+                                                cx="60" cy="60" r="52"
+                                                fill="none" stroke="#31CCEC" strokeWidth="8"
+                                                strokeLinecap="round"
+                                                strokeDasharray={`${2 * Math.PI * 52}`}
+                                                initial={{ strokeDashoffset: 2 * Math.PI * 52 }}
+                                                animate={{ strokeDashoffset: 2 * Math.PI * 52 * (1 - (stops.filter(s => s.isCompleted).length / (stops.length || 1))) }}
+                                                transition={{ duration: 1, ease: "easeOut" }}
+                                            />
+                                        </svg>
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                            <span className="text-4xl font-black text-white italic tracking-tighter">
+                                                {stops.filter(s => s.isCompleted).length}
+                                            </span>
+                                            <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em]">
+                                                de {stops.length}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="text-center">
+                                        <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] mb-1">Progreso de Ruta</p>
+                                        <p className="text-2xl font-black text-info italic">
+                                            {stops.length > 0 ? Math.round((stops.filter(s => s.isCompleted).length / stops.length) * 100) : 0}%
+                                        </p>
+                                    </div>
+
+                                    {/* Stats Grid */}
+                                    <div className="grid grid-cols-3 gap-4 w-full">
+                                        <div className="text-center p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
+                                            <p className="text-lg font-black text-emerald-400">{stops.filter(s => s.isCompleted).length}</p>
+                                            <p className="text-[8px] font-black text-emerald-400/50 uppercase tracking-widest">Entregados</p>
+                                        </div>
+                                        <div className="text-center p-4 bg-red-500/5 border border-red-500/10 rounded-2xl">
+                                            <p className="text-lg font-black text-red-400">{stops.filter(s => s.isFailed).length}</p>
+                                            <p className="text-[8px] font-black text-red-400/50 uppercase tracking-widest">Fallidos</p>
+                                        </div>
+                                        <div className="text-center p-4 bg-info/5 border border-info/10 rounded-2xl">
+                                            <p className="text-lg font-black text-info">{stops.filter(s => !s.isCompleted && !s.isFailed).length}</p>
+                                            <p className="text-[8px] font-black text-info/50 uppercase tracking-widest">Pendientes</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        />
                     </BottomSheet>
 
                     {/* Persistent Optimize / Reset Buttons */}
@@ -1758,19 +1919,17 @@ export default function Dashboard() {
                                                 {activeModal === 'edit-stop' ? 'Ajustar Punto' :
                                                     activeModal === 'add-stop' ? 'Nueva Parada' :
                                                         activeModal === 'settings' ? 'Configuración' :
-                                                            activeModal === 'profile' ? 'Mi Perfil' :
-                                                                activeModal === 'save-route' ? 'Guardar Ruta' :
-                                                                    activeModal === 'saved-routes' ? 'Mis Rutas' :
-                                                                        activeModal === 'bulk-import' ? 'Carga Masiva' :
-                                                                            activeModal === 'route-summary' ? 'Resumen' : 'Hormiruta'}
+                                                            activeModal === 'sos-config' ? 'Emergencia SOS' :
+                                                                activeModal === 'profile' ? 'Mi Perfil' :
+                                                                    activeModal === 'save-route' ? 'Guardar Ruta' :
+                                                                        activeModal === 'saved-routes' ? 'Mis Rutas' :
+                                                                            activeModal === 'bulk-import' ? 'Carga Masiva' :
+                                                                                activeModal === 'route-summary' ? 'Resumen' : 'Hormiruta'}
                                             </h3>
                                             <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em] mt-1">Hormiruta Protocol</p>
                                         </div>
                                         <button
-                                            onClick={() => {
-                                                setActiveModal(null);
-                                                setActiveStop(null);
-                                            }}
+                                            onClick={handleCloseModal}
                                             className="p-3 bg-white/5 rounded-[20px] text-white/20 hover:text-white transition-all shadow-inner relative z-20"
                                         >
                                             <X className="w-5 h-5" />
@@ -2099,8 +2258,22 @@ export default function Dashboard() {
                                                 </div>
                                             </div>
                                         </div>
+                                    ) : activeModal === 'sos-config' ? (
+                                        <div className="pt-2 pb-8 px-2 space-y-6">
+                                            <div className="flex flex-col items-center text-center pb-4 border-b border-white/5">
+                                                <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center mb-4 border border-red-500/20 shadow-lg shadow-red-500/10">
+                                                    <ShieldAlert className="w-8 h-8 text-red-500 animate-pulse" />
+                                                </div>
+                                                <h4 className="text-xl font-black text-white uppercase tracking-tighter">Botón de Pánico</h4>
+                                                <p className="text-[10px] text-white/40 mt-1">Configura tu contacto de emergencia principal</p>
+                                            </div>
+                                            <SOSConfig />
+                                        </div>
                                     ) : activeModal === 'settings' ? (
                                         <div className="space-y-8">
+                                            {/* Mi Suscripción Section - Powered by SubscriptionManager */}
+                                            <SubscriptionManager onUpgrade={() => setActiveModal('pricing')} />
+
                                             <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
                                                 <p className="text-[10px] font-black text-white/30 uppercase tracking-widest">Apariencia del Mapa</p>
                                                 <div className="flex bg-black/50 p-1 rounded-2xl border border-white/5">
@@ -2188,6 +2361,26 @@ export default function Dashboard() {
                                                     </button>
                                                 </div>
                                             </div>
+                                            <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
+                                                <p className="text-[10px] font-black text-white/30 uppercase tracking-widest">Información Legal</p>
+                                                <div className="grid grid-cols-1 gap-2">
+                                                    <Link href="/privacy" className="flex items-center justify-between p-4 bg-black/20 hover:bg-white/5 rounded-2xl border border-white/5 transition-all group">
+                                                        <div className="flex items-center gap-3">
+                                                            <Shield className="w-4 h-4 text-white/40 group-hover:text-info" />
+                                                            <span className="text-[10px] font-bold uppercase text-white/60">Aviso de Privacidad</span>
+                                                        </div>
+                                                        <ChevronRight className="w-4 h-4 text-white/10" />
+                                                    </Link>
+                                                    <Link href="/terms" className="flex items-center justify-between p-4 bg-black/20 hover:bg-white/5 rounded-2xl border border-white/5 transition-all group">
+                                                        <div className="flex items-center gap-3">
+                                                            <FileText className="w-4 h-4 text-white/40 group-hover:text-info" />
+                                                            <span className="text-[10px] font-bold uppercase text-white/60">Términos y Condiciones</span>
+                                                        </div>
+                                                        <ChevronRight className="w-4 h-4 text-white/10" />
+                                                    </Link>
+                                                </div>
+                                            </div>
+
                                             <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-4">
                                                 <p className="text-[10px] font-black text-white/30 uppercase tracking-widest">Mantenimiento de App</p>
                                                 <button

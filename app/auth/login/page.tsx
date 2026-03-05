@@ -105,9 +105,18 @@ function LoginContent() {
 
             if (result?.error) {
                 console.error("[LOGIN] Sign in error:", result.error);
-                alert('Error al iniciar sesión: ' + (result.error === 'CredentialsSignin' ? 'Credenciales inválidas' : result.error));
+                let message = 'Error al iniciar sesión';
+                if (result.error === 'CredentialsSignin') {
+                    message = 'Correo o contraseña incorrectos. Por favor, verifica tus datos.';
+                } else if (result.error === 'Configuration') {
+                    message = 'Error de configuración del servidor. Por favor, contacta a soporte.';
+                } else {
+                    message = result.error;
+                }
+                alert(message);
                 setLoading(false);
             } else {
+
                 console.log("[LOGIN] Success, checking role...");
                 // Fetch session to check role
                 const sessionRes = await fetch('/api/auth/session');
@@ -131,7 +140,7 @@ function LoginContent() {
     };
 
     return (
-        <div className="min-h-screen w-full flex items-center justify-center p-6 relative overflow-hidden">
+        <div className="min-h-screen w-full flex items-center justify-center p-6 relative overflow-hidden" suppressHydrationWarning>
             {/* Background Effects: Subtle and flowing */}
             <div className="absolute top-[-20%] left-[-20%] w-[60vw] h-[60vw] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-accent/10 rounded-full blur-[100px] pointer-events-none" />

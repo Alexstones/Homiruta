@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
-import dbConnect from "@/app/lib/mongodb";
-import User from "@/app/models/User";
+import { supabase } from "@/app/lib/supabaseClient";
 
 export async function POST(req: NextRequest) {
     try {
@@ -21,20 +20,21 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Formato de número inválido" }, { status: 400 });
         }
 
-        await dbConnect();
-        const user = await User.findByIdAndUpdate(
-            (session.user as any).id,
-            { sosContact },
-            { new: true }
-        );
+        const { data: user, error } = await supabase
+            .from('users')
+            .update({ sos_contact: sosContact })
+            .eq('id', (session.user as any).id)
+            .select()
+            .single();
 
-        if (!user) {
-            return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+        if (error || !user) {
+            console.error("[API_SOS_UPDATE_ERROR] Supabase error:", error);
+            return NextResponse.json({ error: "Usuario no encontrado o error en la base de datos" }, { status: 404 });
         }
 
         return NextResponse.json({
             message: "Contacto SOS actualizado correctamente",
-            sosContact: user.sosContact
+            sosContact: user.sos_contact
         });
 
     } catch (error) {
@@ -42,3 +42,4 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
     }
 }
+

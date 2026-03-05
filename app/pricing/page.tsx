@@ -9,6 +9,8 @@ import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import StripeCheckout from '../components/StripeCheckout';
+import PayPalButton from '../components/PayPalButton';
+
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
 
@@ -18,6 +20,8 @@ export default function PricingPage() {
     const [selectedPlan, setSelectedPlan] = useState<{ name: string, price: number } | null>(null);
     const [clientSecret, setClientSecret] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal'>('stripe');
+
 
     const handlePlanSelection = async (planName: string, price: string) => {
         if (!session) {
@@ -59,6 +63,17 @@ export default function PricingPage() {
             setIsProcessing(false);
         }
     };
+
+    const handlePayPalClick = (planName: string, price: string) => {
+        if (!session) {
+            router.push('/auth/login?callbackUrl=/pricing');
+            return;
+        }
+        const numericPrice = parseFloat(price.replace('$', ''));
+        setSelectedPlan({ name: planName, price: numericPrice });
+        setPaymentMethod('paypal');
+    };
+
 
     const handlePaymentSuccess = async () => {
         await update({ plan: 'premium', subscriptionStatus: 'active' });
@@ -248,48 +263,102 @@ export default function PricingPage() {
                                 >
                                     {plan.cta}
                                 </Link>
-                            ) : selectedPlan?.name === plan.name && clientSecret ? (
-                                <div className="w-full">
-                                    <Elements stripe={stripePromise} options={{
-                                        clientSecret,
-                                        appearance: {
-                                            theme: 'night',
-                                            variables: {
-                                                colorPrimary: '#3b82f6',
-                                                colorBackground: '#1e293b',
-                                                colorText: '#ffffff',
-                                            }
-                                        }
-                                    }}>
-                                        <StripeCheckout
-                                            amount={selectedPlan.price}
-                                            planName={selectedPlan.name}
-                                            onSuccess={handlePaymentSuccess}
-                                            onCancel={() => {
-                                                setSelectedPlan(null);
-                                                setClientSecret(null);
-                                            }}
-                                        />
-                                    </Elements>
-                                </div>
                             ) : (
-                                <button
-                                    onClick={() => handlePlanSelection(plan.name, plan.price)}
-                                    disabled={isProcessing && selectedPlan?.name === plan.name}
-                                    className={`w-full py-5 sm:py-6 rounded-[28px] sm:rounded-[36px] text-center font-black uppercase tracking-[0.2em] text-[10px] sm:text-[12px] transition-all active:scale-95 shadow-2xl ${plan.highlight
-                                        ? 'bg-gradient-to-r from-info via-blue-400 to-indigo-500 text-dark hover:brightness-110 hover:shadow-info/30'
-                                        : 'bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20'
-                                        } flex items-center justify-center gap-2`}
-                                >
-                                    {isProcessing && selectedPlan?.name === plan.name ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                    ) : (
-                                        <>
+                                <div className="space-y-4">
+                                    {/* Main selection button if nothing selected */}
+                                    {selectedPlan?.name !== plan.name && (
+                                        <button
+                                            onClick={() => handlePlanSelection(plan.name, plan.price)}
+                                            className={`w-full py-5 sm:py-6 rounded-[28px] sm:rounded-[36px] text-center font-black uppercase tracking-[0.2em] text-[10px] sm:text-[12px] transition-all active:scale-95 shadow-2xl ${plan.highlight
+                                                ? 'bg-gradient-to-r from-info via-blue-400 to-indigo-500 text-dark hover:brightness-110 hover:shadow-info/30'
+                                                : 'bg-white/5 text-white hover:bg-white/10 border border-white/10 hover:border-white/20'
+                                                } flex items-center justify-center gap-2`}
+                                        >
                                             {plan.cta} ({plan.price})
-                                        </>
+                                        </button>
                                     )}
-                                </button>
+
+                                    {/* Payment Method Selector if this plan is selected */}
+                                    {selectedPlan?.name === plan.name && (
+                                        <div className="p-4 rounded-xl bg-white/5 border border-white/10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                            <div className="flex gap-2 mb-4">
+                                                <button
+                                                    onClick={() => {
+                                                        setPaymentMethod('stripe');
+                                                        if (!clientSecret) handlePlanSelection(plan.name, plan.price);
+                                                    }}
+                                                    className={`flex-1 py-3 text-[10px] font-bold uppercase rounded-lg border transition-all ${paymentMethod === 'stripe' ? 'bg-info/20 border-info text-info' : 'border-white/10 text-white/40'}`}
+                                                >
+                                                    Stripe (Tarjeta)
+                                                </button>
+                                                <button
+                                                    onClick={() => handlePayPalClick(plan.name, plan.price)}
+                                                    className={`flex-1 py-3 text-[10px] font-bold uppercase rounded-lg border transition-all ${paymentMethod === 'paypal' ? 'bg-[#ffc439]/20 border-[#ffc439] text-[#ffc439]' : 'border-white/10 text-white/40'}`}
+                                                >
+                                                    PayPal
+                                                </button>
+                                            </div>
+
+                                            {paymentMethod === 'stripe' && (
+                                                <div className="w-full">
+                                                    {isProcessing ? (
+                                                        <div className="flex justify-center py-4">
+                                                            <Loader2 className="w-6 h-6 animate-spin text-info" />
+                                                        </div>
+                                                    ) : clientSecret ? (
+                                                        <Elements stripe={stripePromise} options={{
+                                                            clientSecret,
+                                                            appearance: {
+                                                                theme: 'night',
+                                                                variables: {
+                                                                    colorPrimary: '#3b82f6',
+                                                                    colorBackground: '#1e293b',
+                                                                    colorText: '#ffffff',
+                                                                }
+                                                            }
+                                                        }}>
+                                                            <StripeCheckout
+                                                                amount={selectedPlan.price}
+                                                                planName={selectedPlan.name}
+                                                                onSuccess={handlePaymentSuccess}
+                                                                onCancel={() => {
+                                                                    setSelectedPlan(null);
+                                                                    setClientSecret(null);
+                                                                }}
+                                                            />
+                                                        </Elements>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => handlePlanSelection(plan.name, plan.price)}
+                                                            className="w-full py-2 text-xs font-bold text-info"
+                                                        >
+                                                            Reintentar Stripe
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {paymentMethod === 'paypal' && (
+                                                <PayPalButton
+                                                    hostedButtonId={process.env.NEXT_PUBLIC_PAYPAL_HOSTED_BUTTON_ID || 'UNU63FHCSZTV4'}
+                                                    clientId="BAA8AWgBe8uBwcTQlfOR2yeHMeir9QHGCL4o3dvuGa9prlDXyL7jTEn7f_DONFRqqBU7YaYklr05FpIPrI"
+                                                />
+                                            )}
+
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedPlan(null);
+                                                    setClientSecret(null);
+                                                }}
+                                                className="w-full mt-4 text-[9px] font-bold text-white/20 hover:text-white transition-colors uppercase tracking-[0.2em]"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             )}
+
                         </motion.div>
                     ))}
                 </div>

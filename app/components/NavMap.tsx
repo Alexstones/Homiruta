@@ -78,7 +78,7 @@ const Directions = ({ stops, origin, returnToStart }: { stops: Stop[], origin: a
 
         const past = createRenderer('#6B7280', 4, 0.5); // Gray
         const next = createRenderer('#2563EB', 6, 0.9); // Strong Blue
-        const future = createRenderer('#93C5FD', 4, 0.6); // Light Blue
+        const future = createRenderer('#10B981', 4, 0.6); // Emerald Green
 
         setRenderers({ past, next, future });
 
@@ -119,15 +119,30 @@ const Directions = ({ stops, origin, returnToStart }: { stops: Stop[], origin: a
             renderers.past?.setDirections({ routes: [] } as any);
         }
 
-        // 2. NEXT SEGMENT (Origin to first pending stop)
+        // 2. NEXT SEGMENT (Prioritize User Location OR Last Completed Stop to first pending stop)
         const pendingStops = [...stops]
             .filter(s => !s.isCompleted && !s.isFailed)
             .sort((a, b) => a.order - b.order);
 
         if (pendingStops.length > 0) {
             const nextStop = pendingStops[0];
+
+            // Lógica de origen dinámico:
+            // 1. Usar ubicación GPS real si está disponible
+            // 2. Usar última parada completada si no hay GPS
+            // 3. Usar origen del día como fallback
+            let dynamicOrigin = origin;
+
+            const lastCompleted = [...stops]
+                .filter(s => s.isCompleted || s.isFailed)
+                .sort((a, b) => b.order - a.order)[0]; // Obtener la más reciente
+
+            if (lastCompleted) {
+                dynamicOrigin = { lat: lastCompleted.lat, lng: lastCompleted.lng };
+            }
+
             directionsService.route({
-                origin: { lat: Number(origin.lat), lng: Number(origin.lng) },
+                origin: { lat: Number(dynamicOrigin.lat), lng: Number(dynamicOrigin.lng) },
                 destination: { lat: Number(nextStop.lat), lng: Number(nextStop.lng) },
                 travelMode: google.maps.TravelMode.DRIVING
             }, (result, status) => {
@@ -189,21 +204,23 @@ const logisticMapStyles = [
 const svgToDataUrl = (svg: string): string => `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 
 const createStopPin = (number: number, isCurrent: boolean, isCompleted: boolean, isFailed: boolean, isSelected: boolean) => {
-    let color = '#93C5FD'; // Light Blue (Future)
-    if (isCompleted || isFailed) {
-        color = '#6B7280'; // Gray (Visited)
+    let color = '#10B981'; // Emerald Green (Future Pending)
+    if (isCompleted) {
+        color = '#059669'; // Success Dark Green
+    } else if (isFailed) {
+        color = '#EF4444'; // Error Red
     } else if (isCurrent) {
         color = '#2563EB'; // Strong Blue (Current)
     }
 
     if (isSelected) color = '#f59e0b'; // Amber override for selection
 
-    const statusIcon = isCompleted ? '✓' : isFailed ? '✕' : number;
+    const statusIcon = isCompleted ? '✔' : isFailed ? '✘' : number;
 
     return `<svg width="40" height="50" viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg">
         <path d="M 20 2 C 28 2 35 9 35 17 C 35 30 20 48 20 48 C 20 48 5 30 5 17 C 5 9 12 2 20 2 Z" fill="${color}" stroke="white" stroke-width="2.5"/>
         <circle cx="20" cy="18" r="11" fill="white"/>
-        <text x="20" y="${isCompleted || isFailed ? 25 : 24}" font-size="${isCompleted || isFailed ? 18 : 14}" font-weight="1000" text-anchor="middle" fill="${color}">${statusIcon}</text>
+        <text x="20" y="${isCompleted || isFailed ? 24 : 24}" font-size="${isCompleted || isFailed ? 17 : 14}" font-weight="900" text-anchor="middle" fill="${color}">${statusIcon}</text>
     </svg>`;
 };
 

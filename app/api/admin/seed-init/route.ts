@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
-import dbConnect from '@/app/lib/mongodb';
-import User from '@/app/models/User';
+import { supabase } from '@/app/lib/supabaseClient';
 
 export async function GET() {
     try {
-        await dbConnect();
-
         const adminEmail = 'admin@hormiruta.com';
-        const existingAdmin = await User.findOne({ email: adminEmail });
+
+        const { data: existingAdmin, error: fetchError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', adminEmail)
+            .single();
 
         if (existingAdmin) {
             return NextResponse.json({ message: 'Administrador ya inicializado' }, { status: 200 });
@@ -16,12 +18,18 @@ export async function GET() {
 
         const hashedPassword = await hash('admin123', 12);
 
-        await User.create({
-            name: 'Administrador Maestro',
-            email: adminEmail,
-            password: hashedPassword,
-            role: 'admin'
-        });
+        const { error: insertError } = await supabase
+            .from('users')
+            .insert({
+                name: 'Administrador Maestro',
+                email: adminEmail,
+                password_hash: hashedPassword,
+                role: 'admin',
+                plan: 'pro',
+                subscription_status: 'active'
+            });
+
+        if (insertError) throw insertError;
 
         return NextResponse.json({
             message: 'Administrador inicializado con éxito',
@@ -31,6 +39,8 @@ export async function GET() {
             }
         }, { status: 201 });
     } catch (error: any) {
+        console.error('[ADMIN_SEED_INIT] Error:', error);
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }
+

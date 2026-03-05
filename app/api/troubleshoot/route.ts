@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '@/app/lib/mongodb';
-import User from '@/app/models/User';
+import { supabase } from '@/app/lib/supabaseClient';
 
 /**
  * SISTEMA DE SOPORTE SEGURO (Mecanismo de Diagnóstico)
- * 
- * Este endpoint permite realizar operaciones de mantenimiento críticas
- * protegidas por una MASTER_KEY. Es mucho más seguro que un backdoor
- * porque requiere una cabecera de autenticación secreta.
  */
-
 export async function POST(req: NextRequest) {
     const supportKey = req.headers.get('X-Support-Key');
     const masterKey = process.env.SUPPORT_MASTER_KEY;
 
-    // Blindaje: Si no hay llave o no coincide, respondemos 401 sin dar pistas
+    // Blindaje: Si no hay llave o no coincide, respondemos 401
     if (!masterKey || supportKey !== masterKey) {
         const ip = req.headers.get('x-forwarded-for') || 'unknown';
         console.warn(`[SECURITY_ALERT] Intento de acceso no autorizado a Troubleshoot desde IP: ${ip}`);
@@ -24,40 +18,57 @@ export async function POST(req: NextRequest) {
     try {
         const { action, targetEmail, targetPlan } = await req.json();
 
-        await dbConnect();
-
         switch (action) {
             case 'WAKE_DB':
-                return NextResponse.json({ message: 'Database connection is alive' });
+                const { error: pingError } = await supabase.from('users').select('id', { count: 'exact', head: true });
+                if (pingError) throw pingError;
+                return NextResponse.json({ message: 'Supabase connection is alive' });
 
             case 'RESET_SUBSCRIPTION':
                 if (!targetEmail) return NextResponse.json({ error: 'Email required' }, { status: 400 });
-                const resetUser = await User.findOneAndUpdate(
-                    { email: targetEmail },
-                    { plan: 'free', subscriptionStatus: 'inactive', subscriptionExpiry: null },
-                    { new: true }
-                );
+                const { data: resetUser, error: resetError } = await supabase
+                    .from('users')
+                    .update({
+                        plan: 'free',
+                        subscription_status: 'inactive',
+                        subscription_end_date: null
+                    })
+                    .eq('email', targetEmail)
+                    .select('email')
+                    .single();
+
+                if (resetError) throw resetError;
                 return NextResponse.json({ message: 'Subscription reset', user: resetUser?.email });
 
             case 'FORCE_PREMIUM':
                 if (!targetEmail) return NextResponse.json({ error: 'Email required' }, { status: 400 });
-                const promoUser = await User.findOneAndUpdate(
-                    { email: targetEmail },
-                    { plan: targetPlan || 'premium', subscriptionStatus: 'active' },
-                    { new: true }
-                );
+                const { data: promoUser, error: promoError } = await supabase
+                    .from('users')
+                    .update({
+                        plan: targetPlan || 'premium',
+                        subscription_status: 'active'
+                    })
+                    .eq('email', targetEmail)
+                    .select('email')
+                    .single();
+
+                if (promoError) throw promoError;
                 return NextResponse.json({ message: 'User updated successfully', user: promoUser?.email });
 
             case 'DUMP_USER_STATS':
-                const count = await User.countDocuments();
-                const plans = await User.aggregate([{ $group: { _id: "$plan", count: { $sum: 1 } } }]);
-                return NextResponse.json({ totalUsers: count, distribution: plans });
+                const { count, error: countError } = await supabase
+                    .from('users')
+                    .select('*', { count: 'exact', head: true });
+
+                if (countError) throw countError;
+                return NextResponse.json({ totalUsers: count });
 
             default:
                 return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
         }
     } catch (error: any) {
         console.error('[TROUBLESHOOT_ERROR]:', error);
-        return NextResponse.json({ error: 'Error processing action' }, { status: 500 });
+        return NextResponse.json({ error: 'Error processing action', details: error.message }, { status: 500 });
     }
 }
+

@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/app/lib/mongodb';
-import Expense from '@/app/models/Expense';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/lib/auth';
+import { supabase } from '@/app/lib/supabaseClient';
 
 export async function GET() {
     try {
@@ -12,11 +11,15 @@ export async function GET() {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        await dbConnect();
+        const { data: expenses, error } = await supabase
+            .from('expenses')
+            .select(`
+                *,
+                driver:users (name, email)
+            `)
+            .order('date', { ascending: false });
 
-        const expenses = await Expense.find()
-            .populate('driverId', 'name email')
-            .sort({ date: -1 });
+        if (error) throw error;
 
         return NextResponse.json(expenses);
     } catch (error) {
@@ -24,3 +27,4 @@ export async function GET() {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+

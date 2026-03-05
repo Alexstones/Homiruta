@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
-import dbConnect from '@/app/lib/mongodb';
-import Route from '@/app/models/Route';
+import { supabase } from '@/app/lib/supabaseClient';
 
 export async function GET(req: Request) {
     try {
@@ -11,8 +10,16 @@ export async function GET(req: Request) {
             return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
         }
 
-        await dbConnect();
-        const routes = await Route.find({ userId: (session.user as any).id }).sort({ date: -1 });
+        const { data: routes, error } = await supabase
+            .from('routes')
+            .select(`
+                *,
+                stops (*)
+            `)
+            .eq('user_id', (session.user as any).id)
+            .order('date', { ascending: false });
+
+        if (error) throw error;
 
         return NextResponse.json(routes);
     } catch (error: any) {
@@ -28,26 +35,60 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: 'No autorizado' }, { status: 401 });
         }
 
-        const { name, date, stops, isOptimized, status, totalDistance, totalTime } = await req.json();
+        const { name, date, stops, isOptimized, status, totalDistance, totalTime, startLocation } = await req.json();
 
         if (!name || !date || !stops) {
             return NextResponse.json({ message: 'Datos incompletos' }, { status: 400 });
         }
 
-        await dbConnect();
+        // 1. Insert Route
+        const { data: route, error: routeError } = await supabase
+            .from('routes')
+            .insert({
+                user_id: (session.user as any).id,
+                name,
+                date: new Date(date).toISOString().split('T')[0],
+                is_optimized: !!isOptimized,
+                status: status || 'active',
+                total_distance: totalDistance || 0,
+                total_time: totalTime || '',
+                start_location: startLocation || null
+            })
+            .select()
+            .single();
 
-        const newRoute = await Route.create({
-            userId: (session.user as any).id,
-            name,
-            date: new Date(date),
-            stops,
-            isOptimized: !!isOptimized,
-            status: status || 'active',
-            totalDistance: totalDistance || 0,
-            totalTime: totalTime || ''
-        });
+        if (routeError) throw routeError;
 
-        return NextResponse.json(newRoute, { status: 201 });
+        // 2. Insert Stops
+        if (stops && stops.length > 0) {
+            const stopsToInsert = stops.map((stop: any, index: number) => ({
+                route_id: route.id,
+                address: stop.address,
+                customer_name: stop.customerName || '',
+                priority: stop.priority || 'NORMAL',
+                time_window: stop.timeWindow || '',
+                notes: stop.notes || '',
+                lat: stop.lat,
+                lng: stop.lng,
+                is_completed: !!stop.isCompleted,
+                is_failed: !!stop.isFailed,
+                is_current: !!stop.isCurrent,
+                order: stop.order !== undefined ? stop.order : index,
+                locator: stop.locator || '',
+                num_packages: stop.numPackages || 1,
+                task_type: stop.taskType || 'DELIVERY',
+                arrival_time_type: stop.arrivalTimeType || 'ANY',
+                estimated_duration: stop.estimatedDuration || 10
+            }));
+
+            const { error: stopsError } = await supabase
+                .from('stops')
+                .insert(stopsToInsert);
+
+            if (stopsError) throw stopsError;
+        }
+
+        return NextResponse.json(route, { status: 201 });
     } catch (error: any) {
         console.error('Error creating route:', error);
         return NextResponse.json({ message: error.message }, { status: 500 });
@@ -67,23 +108,48 @@ export async function PATCH(req: Request) {
             return NextResponse.json({ message: 'ID de ruta requerido' }, { status: 400 });
         }
 
-        await dbConnect();
+        // 1. Update Route
+        const { data: updatedRoute, error: routeError } = await supabase
+            .from('routes')
+            .update({
+                status: status,
+                total_distance: totalDistance,
+                total_time: totalTime,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id)
+            .eq('user_id', (session.user as any).id)
+            .select()
+            .single();
 
-        const updatedRoute = await Route.findOneAndUpdate(
-            { _id: id, userId: (session.user as any).id },
-            {
-                $set: {
-                    stops,
-                    status,
-                    totalDistance,
-                    totalTime
-                }
-            },
-            { new: true }
-        );
+        if (routeError) throw routeError;
 
-        if (!updatedRoute) {
-            return NextResponse.json({ message: 'Ruta no encontrada' }, { status: 404 });
+        // 2. Update Stops (Simple way: Delete and Re-insert if requested)
+        if (stops) {
+            await supabase.from('stops').delete().eq('route_id', id);
+
+            const stopsToInsert = stops.map((stop: any, index: number) => ({
+                route_id: id,
+                address: stop.address,
+                customer_name: stop.customerName || '',
+                priority: stop.priority || 'NORMAL',
+                time_window: stop.timeWindow || '',
+                notes: stop.notes || '',
+                lat: stop.lat,
+                lng: stop.lng,
+                is_completed: !!stop.isCompleted,
+                is_failed: !!stop.isFailed,
+                is_current: !!stop.isCurrent,
+                order: stop.order !== undefined ? stop.order : index,
+                locator: stop.locator || '',
+                num_packages: stop.numPackages || 1,
+                task_type: stop.taskType || 'DELIVERY',
+                arrival_time_type: stop.arrivalTimeType || 'ANY',
+                estimated_duration: stop.estimatedDuration || 10
+            }));
+
+            const { error: stopsError } = await supabase.from('stops').insert(stopsToInsert);
+            if (stopsError) throw stopsError;
         }
 
         return NextResponse.json(updatedRoute);
@@ -92,3 +158,4 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }
+

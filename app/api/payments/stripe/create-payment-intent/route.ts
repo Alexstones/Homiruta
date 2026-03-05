@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { stripe } from '@/app/lib/stripe';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
+import { recordPayment } from '@/app/lib/supabaseService';
+
 
 export async function POST(req: Request) {
     try {
@@ -29,6 +31,22 @@ export async function POST(req: Request) {
                 enabled: true,
             },
         });
+
+        // Sync with Supabase (initial pending state)
+        if (session.user.email) {
+            try {
+                await recordPayment(
+                    session.user.email,
+                    paymentIntent.id,
+                    amount,
+                    'mxn',
+                    'pending'
+                );
+            } catch (supabaseErr) {
+                console.error('[STRIPE] Supabase recordPayment error:', supabaseErr);
+            }
+        }
+
 
         return NextResponse.json({
             clientSecret: paymentIntent.client_secret,

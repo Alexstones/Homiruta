@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
-import dbConnect from '../../../lib/mongodb';
-import User from '../../../models/User';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../lib/auth';
+import { authOptions } from '@/app/lib/auth';
+import { supabase } from '@/app/lib/supabaseClient';
 
 export async function POST(req: Request) {
     try {
@@ -20,24 +19,36 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: 'Datos incompletos o contraseña muy corta' }, { status: 400 });
         }
 
-        await dbConnect();
+        // Check if user exists in Supabase
+        const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', email)
+            .single();
 
-        const existingUser = await User.findOne({ email });
         if (existingUser) {
             return NextResponse.json({ message: 'Este correo ya está registrado' }, { status: 400 });
         }
 
         const hashedPassword = await hash(password, 12);
 
-        await User.create({
-            name: name || 'Nuevo Administrador',
-            email,
-            password: hashedPassword,
-            role: 'admin'
-        });
+        const { error } = await supabase
+            .from('users')
+            .insert({
+                name: name || 'Nuevo Administrador',
+                email,
+                password_hash: hashedPassword,
+                role: 'admin',
+                plan: 'pro', // Admins usually get pro plan
+                subscription_status: 'active'
+            });
+
+        if (error) throw error;
 
         return NextResponse.json({ message: 'Nuevo administrador creado con éxito' }, { status: 201 });
     } catch (error: any) {
+        console.error('[ADMIN_CREATE_ADMIN] Error:', error);
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }
+

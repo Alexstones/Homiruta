@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/lib/auth';
-import dbConnect from '@/app/lib/mongodb';
-import Expense from '@/app/models/Expense';
+import { supabase } from '@/app/lib/supabaseClient';
 
 export async function GET(req: Request) {
     try {
@@ -14,12 +13,19 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const routeId = searchParams.get('routeId');
 
-        await dbConnect();
-        const filter = routeId
-            ? { driverId: (session.user as any).id, routeId }
-            : { driverId: (session.user as any).id };
+        let query = supabase
+            .from('expenses')
+            .select('*')
+            .eq('driver_id', (session.user as any).id)
+            .order('date', { ascending: false });
 
-        const expenses = await Expense.find(filter).sort({ date: -1 });
+        if (routeId && routeId !== 'NONE') {
+            query = query.eq('route_id', routeId);
+        }
+
+        const { data: expenses, error } = await query;
+
+        if (error) throw error;
 
         return NextResponse.json(expenses);
     } catch (error: any) {
@@ -41,16 +47,20 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: 'Datos incompletos' }, { status: 400 });
         }
 
-        await dbConnect();
+        const { data: newExpense, error } = await supabase
+            .from('expenses')
+            .insert({
+                driver_id: (session.user as any).id,
+                route_id: routeId && routeId !== 'NONE' ? routeId : null,
+                type,
+                amount,
+                description,
+                date: date ? new Date(date).toISOString() : new Date().toISOString()
+            })
+            .select()
+            .single();
 
-        const newExpense = await Expense.create({
-            driverId: (session.user as any).id,
-            routeId: routeId || 'NONE',
-            type,
-            amount,
-            description,
-            date: date ? new Date(date) : new Date()
-        });
+        if (error) throw error;
 
         return NextResponse.json(newExpense, { status: 201 });
     } catch (error: any) {
@@ -58,3 +68,4 @@ export async function POST(req: Request) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
 }
+

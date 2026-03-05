@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowRight, MapPin, TrendingUp, ShieldCheck, Zap } from 'lucide-react';
@@ -9,7 +9,12 @@ import { useRouter } from 'next/navigation';
 
 export default function LandingPage() {
     const { status } = useSession();
+    const [mounted, setMounted] = useState(false);
     const router = useRouter();
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     useEffect(() => {
         if (status === 'authenticated') {
@@ -71,7 +76,7 @@ export default function LandingPage() {
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
                         <Link href="/dashboard" className="w-full sm:w-auto px-6 py-3.5 bg-gradient-to-r from-info to-blue-600 text-white font-black text-base rounded-xl shadow-[0_0_20px_rgba(49,204,236,0.3)] hover:shadow-[0_0_40px_rgba(49,204,236,0.5)] hover:scale-105 transition-all flex items-center justify-center gap-2 group border border-white/20">
                             Empezar Ahora
-                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                            {mounted && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
                         </Link>
                         <Link href="/auth/login" className="w-full sm:w-auto px-6 py-3.5 bg-white/10 text-white font-bold text-base rounded-xl hover:bg-white/20 border border-white/10 backdrop-blur-md transition-all flex items-center justify-center hover:scale-105">
                             Iniciar Sesión
@@ -160,7 +165,7 @@ export default function LandingPage() {
                     ].map((feature, i) => (
                         <div key={i} className="premium-card p-8 group hover:-translate-y-2 transition-transform duration-300">
                             <div className="w-14 h-14 bg-gradient-to-br from-info to-blue-700 rounded-2xl flex items-center justify-center mb-6 shadow-lg group-hover:shadow-info/20">
-                                <feature.icon className="w-7 h-7 text-white" />
+                                {mounted && <feature.icon className="w-7 h-7 text-white" />}
                             </div>
                             <h3 className="text-2xl font-bold text-white mb-3">{feature.title}</h3>
                             <p className="text-white/50 leading-relaxed">{feature.desc}</p>
@@ -171,7 +176,7 @@ export default function LandingPage() {
 
             {/* Footer */}
             <footer className="py-12 border-t border-white/5 text-center text-white/30 text-sm">
-                <p>&copy; {new Date().getFullYear()} HormiRuta Technologies. Todos los derechos reservados.</p>
+                <p suppressHydrationWarning>&copy; {new Date().getFullYear()} HormiRuta Technologies. Todos los derechos reservados.</p>
             </footer>
         </div>
     );

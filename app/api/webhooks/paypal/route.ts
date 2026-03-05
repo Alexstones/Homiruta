@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import dbConnect from '../../../lib/mongodb';
-import User from '../../../models/User';
+import { supabase } from '@/app/lib/supabaseClient';
 
 async function getPayPalAccessToken() {
     const auth = Buffer.from(`${process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID}:${process.env.PAYPAL_CLIENT_SECRET}`).toString('base64');
@@ -39,26 +38,23 @@ export async function POST(req: NextRequest) {
         }
 
         // 2. Si el pago es real, activar en la BD
-        await dbConnect();
-
         const expiryDate = new Date();
         expiryDate.setMonth(expiryDate.getMonth() + 1);
 
-        const updatedUser = await User.findOneAndUpdate(
-            { email },
-            {
-                $set: {
-                    plan: 'premium',
-                    subscriptionStatus: 'active',
-                    subscriptionExpiry: expiryDate,
-                    lastPaymentId: orderId
-                }
-            },
-            { new: true }
-        );
+        const { data: updatedUser, error } = await supabase
+            .from('users')
+            .update({
+                plan: 'premium',
+                subscription_status: 'active',
+                subscription_end_date: expiryDate.toISOString()
+            })
+            .eq('email', email)
+            .select('*')
+            .single();
 
-        if (!updatedUser) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        if (error || !updatedUser) {
+            console.error('[PAYPAL_WEBHOOK] Supabase error:', error);
+            return NextResponse.json({ error: 'User not found or database error' }, { status: 404 });
         }
 
         return NextResponse.json({
@@ -72,3 +68,4 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+

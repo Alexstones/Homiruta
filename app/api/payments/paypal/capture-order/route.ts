@@ -3,8 +3,7 @@ import { NextResponse } from "next/server";
 import { capturePayPalOrder } from "@/app/lib/paypal";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
-import dbConnect from "@/app/lib/mongodb";
-import User from "@/app/models/User";
+import { supabase } from "@/app/lib/supabaseClient";
 
 export async function POST(req: Request) {
     try {
@@ -21,28 +20,29 @@ export async function POST(req: Request) {
         if (captureData.status === "COMPLETED") {
             const session = await getServerSession(authOptions);
 
-            if (session?.user?.email) {
-                await dbConnect();
-                const user = await User.findOneAndUpdate(
-                    { email: session.user.email },
-                    {
+            if (session?.user) {
+                const { data: user, error } = await supabase
+                    .from('users')
+                    .update({
                         plan: plan,
-                        subscriptionStatus: 'active',
-                        updatedAt: new Date()
-                    },
-                    { new: true }
-                );
+                        subscription_status: 'active'
+                    })
+                    .eq('id', (session.user as any).id)
+                    .select('*')
+                    .single();
 
-                console.log(`[PAYMENT_SUCCESS] User ${session.user.email} upgraded to ${plan}`);
+                if (error) {
+                    console.error(`[PAYMENT_SUCCESS] Supabase update error for ${session.user.email}:`, error);
+                } else {
+                    console.log(`[PAYMENT_SUCCESS] User ${session.user.email} upgraded to ${plan} in Supabase`);
+                }
 
                 return NextResponse.json({
                     success: true,
                     data: captureData,
-                    userPlan: user.plan
+                    userPlan: user?.plan || plan
                 });
             } else {
-                // Payment was successful but no session found
-                // In a real app, you might want to handle this with webhooks
                 return NextResponse.json({
                     success: true,
                     data: captureData,
@@ -58,3 +58,4 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+

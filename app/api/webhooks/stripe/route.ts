@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/app/lib/stripe';
-import dbConnect from '@/app/lib/mongodb';
-import User from '@/app/models/User';
 import { headers } from 'next/headers';
+import { supabase } from '@/app/lib/supabaseClient';
 
 export async function POST(req: Request) {
     const body = await req.text();
-    const signature = (await headers()).get('stripe-signature') as string;
+    const headersList = await headers();
+    const signature = headersList.get('stripe-signature') as string;
 
     let event;
 
@@ -27,32 +27,32 @@ export async function POST(req: Request) {
 
     // Handle the event
     if (event.type === 'payment_intent.succeeded') {
-        const paymentIntent = event.data.object;
+        const paymentIntent = event.data.object as any;
         const email = paymentIntent.metadata.email;
         const planName = paymentIntent.metadata.planName;
 
         if (email) {
-            await dbConnect();
-
             const expiryDate = new Date();
             expiryDate.setMonth(expiryDate.getMonth() + 1);
 
-            await User.findOneAndUpdate(
-                { email },
-                {
-                    $set: {
-                        plan: planName?.toLowerCase() === 'flotilla' ? 'fleet' : 'premium',
-                        subscriptionStatus: 'active',
-                        subscriptionExpiry: expiryDate,
-                        lastPaymentId: paymentIntent.id
-                    }
-                }
-            );
+            const { error } = await supabase
+                .from('users')
+                .update({
+                    plan: planName?.toLowerCase() === 'flotilla' ? 'fleet' : 'premium',
+                    subscription_status: 'active',
+                    subscription_end_date: expiryDate.toISOString()
+                })
+                .eq('email', email);
 
-            console.log(`Subscription activated for ${email} with plan ${planName}`);
+            if (error) {
+                console.error(`[WEBHOOK_STRIPE] Supabase update error for ${email}:`, error);
+            } else {
+                console.log(`Subscription activated for ${email} with plan ${planName} in Supabase`);
+            }
         }
     }
 
     return NextResponse.json({ received: true });
 }
+
 

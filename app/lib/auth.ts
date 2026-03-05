@@ -1,17 +1,11 @@
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { MongoDBAdapter } from "@next-auth/mongodb-adapter";
-import clientPromise from "@/app/lib/mongodb-adapter";
-import dbConnect from "@/app/lib/mongodb";
-import User from "@/app/models/User";
 import { compare } from "bcryptjs";
-
-
+import { supabase } from "./supabaseClient";
 import { initFirebaseAdmin } from "@/app/lib/firebase-admin";
 
 export const authOptions: NextAuthOptions = {
-    adapter: MongoDBAdapter(clientPromise),
     providers: [
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -44,42 +38,54 @@ export const authOptions: NextAuthOptions = {
                             return null;
                         }
 
-                        await dbConnect();
+                        // Find or create user in Supabase
+                        let { data: user, error } = await supabase
+                            .from('users')
+                            .select('*')
+                            .eq('email', email)
+                            .single();
 
-                        // Find or create user
-                        let user = await User.findOne({ email });
+                        if (error && error.code === 'PGRST116') { // Not found
+                            console.log("[AUTH] Creating new user profile in Supabase for:", email);
+                            const { data: newUser, error: createError } = await supabase
+                                .from('users')
+                                .insert({
+                                    email,
+                                    name: name || email.split('@')[0],
+                                    image: picture,
+                                    password_hash: `google_${uid}_${Date.now()}`,
+                                    role: 'user',
+                                    subscription_status: 'none',
+                                    plan: 'free'
+                                })
+                                .select('*')
+                                .single();
 
-                        if (!user) {
-                            console.log("[AUTH] Creating new user profile for:", email);
-                            // Create new user from Google profile
-                            user = await User.create({
-                                email,
-                                name: name || email.split('@')[0],
-                                image: picture,
-                                password: `google_${uid}_${Date.now()}`, // Dummy password for oauth users
-                                role: 'user',
-                                provider: 'google',
-                                subscriptionStatus: 'none',
-                                plan: 'free'
-                            });
+                            if (createError) {
+                                console.error("[AUTH] Supabase user creation error:", createError);
+                                return null;
+                            }
+                            user = newUser;
+                        } else if (error) {
+                            console.error("[AUTH] Supabase query error:", error);
+                            return null;
                         }
 
                         return {
-                            id: user._id.toString(),
+                            id: user.id,
                             email: user.email,
                             name: user.name,
                             image: user.image,
-                            sosContact: user.sosContact,
+                            sosContact: user.sos_contact,
                             role: user.role || 'user',
-                            subscriptionStatus: user.subscriptionStatus || 'none',
+                            subscriptionStatus: user.subscription_status || 'none',
                             plan: user.plan || 'free',
-                            preferredMapApp: user.preferredMapApp,
-                            vehicleType: user.vehicleType
+                            preferredMapApp: user.preferred_map_app,
+                            vehicleType: user.vehicle_type
                         };
 
                     } catch (error: any) {
                         console.error("[AUTH] Google Token Verification Error:", error.message || error);
-                        // No retornamos null inmediatamente para diagnosticar si es un error de Firebase Admin o del Token
                         throw new Error(`Firebase Auth Error: ${error.message}`);
                     }
                 }
@@ -90,30 +96,39 @@ export const authOptions: NextAuthOptions = {
                 }
 
                 try {
-                    await dbConnect();
-                    const user = await User.findOne({ email: credentials.email });
+                    const { data: user, error } = await supabase
+                        .from('users')
+                        .select('*')
+                        .eq('email', credentials.email)
+                        .single();
 
-                    if (!user) {
+                    if (error || !user) {
+                        console.error("[AUTH] User not found or Supabase error:", error);
                         return null;
                     }
 
-                    const isValid = await compare(credentials.password, user.password);
+                    if (!user.password_hash) {
+                        console.error("[AUTH] User has no password (maybe oauth user?)");
+                        return null;
+                    }
+
+                    const isValid = await compare(credentials.password, user.password_hash);
 
                     if (!isValid) {
                         return null;
                     }
 
                     return {
-                        id: user._id.toString(),
+                        id: user.id,
                         email: user.email,
                         name: user.name,
                         image: user.image,
-                        sosContact: user.sosContact,
+                        sosContact: user.sos_contact,
                         role: user.role || 'user',
-                        subscriptionStatus: user.subscriptionStatus || 'none',
+                        subscriptionStatus: user.subscription_status || 'none',
                         plan: user.plan || 'free',
-                        preferredMapApp: user.preferredMapApp,
-                        vehicleType: user.vehicleType
+                        preferredMapApp: user.preferred_map_app,
+                        vehicleType: user.vehicle_type
                     };
                 } catch (error) {
                     console.error("[AUTH] Authorize error:", error);
@@ -132,12 +147,27 @@ export const authOptions: NextAuthOptions = {
         async signIn({ user, account }) {
             if (account?.provider === "google") {
                 try {
-                    await dbConnect();
-                    const existingUser = await User.findOne({ email: user.email });
-                    return true;
+                    const { data: existingUser, error } = await supabase
+                        .from('users')
+                        .select('id')
+                        .eq('email', user.email)
+                        .single();
+
+                    if (error && error.code === 'PGRST116') {
+                        // Create user for browser-side Google Login
+                        await supabase
+                            .from('users')
+                            .insert({
+                                email: user.email,
+                                name: user.name,
+                                image: user.image,
+                                role: 'user',
+                                plan: 'free',
+                                subscription_status: 'none'
+                            });
+                    }
                 } catch (error) {
                     console.error("[AUTH] Error in signIn callback:", error);
-                    return true;
                 }
             }
             return true;
@@ -145,15 +175,14 @@ export const authOptions: NextAuthOptions = {
         async jwt({ token, user, trigger, session }) {
             if (user) {
                 token.id = user.id;
-                token.sosContact = (user as any).sosContact;
-                token.role = (user as any).role;
-                token.plan = (user as any).plan;
-                token.subscriptionStatus = (user as any).subscriptionStatus;
-                token.preferredMapApp = (user as any).preferredMapApp;
-                token.vehicleType = (user as any).vehicleType;
+                token.role = user.role;
+                token.plan = user.plan;
+                token.subscriptionStatus = user.subscriptionStatus;
+                token.preferredMapApp = user.preferredMapApp;
+                token.vehicleType = user.vehicleType;
+                token.sosContact = user.sosContact;
             }
 
-            // Handle session update
             if (trigger === "update" && session) {
                 if (session.sosContact !== undefined) token.sosContact = session.sosContact;
                 if (session.role !== undefined) token.role = session.role;
@@ -167,17 +196,19 @@ export const authOptions: NextAuthOptions = {
         },
         async session({ session, token }) {
             if (token && session.user) {
-                (session.user as any).id = token.id;
-                (session.user as any).sosContact = token.sosContact;
-                (session.user as any).role = token.role;
-                (session.user as any).plan = token.plan;
-                (session.user as any).subscriptionStatus = token.subscriptionStatus;
-                (session.user as any).preferredMapApp = token.preferredMapApp;
-                (session.user as any).vehicleType = token.vehicleType;
+                session.user.id = token.id as string;
+                session.user.role = token.role as string;
+                session.user.plan = token.plan as string;
+                session.user.subscriptionStatus = token.subscriptionStatus as string;
+                session.user.preferredMapApp = token.preferredMapApp as string;
+                session.user.vehicleType = token.vehicleType as string;
+                session.user.sosContact = token.sosContact as string;
             }
             return session;
         },
+
     },
     secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
     debug: true,
 };
+

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Eye, Lock, Globe, ChevronLeft, MapPin, CreditCard, Mail, ExternalLink } from 'lucide-react';
+import { Shield, Eye, Lock, Globe, ChevronLeft, MapPin, CreditCard, Mail, UserCheck, Database, FileText, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -11,24 +11,44 @@ export default function PrivacyPage() {
 
     const sections = [
         {
+            icon: UserCheck,
+            title: "Identidad del Responsable",
+            content: "HormiRuta, operado por Jandosoft, con domicilio en México, es responsable del tratamiento de sus datos personales conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP) y su Reglamento."
+        },
+        {
+            icon: Database,
+            title: "Datos Personales Recabados",
+            content: "Recabamos los siguientes datos: nombre completo, correo electrónico, número telefónico, ubicación GPS en tiempo real (solo durante uso activo de navegación), dirección IP, datos de pago (procesados exclusivamente por Stripe, sin almacenamiento local), historial de rutas y paradas, tipo de vehículo, y datos de contacto de emergencia (SOS)."
+        },
+        {
             icon: MapPin,
-            title: "Datos de Ubicación",
-            content: "Recopilamos su ubicación precisa en segundo plano solo cuando la aplicación está en modo activo de navegación. Estos datos son vitales para calcular tiempos de llegada y optimizar sus rutas logísticas en tiempo real."
+            title: "Datos de Ubicación y Geolocalización",
+            content: "Recopilamos su ubicación precisa en segundo plano solo cuando la aplicación está en modo activo de navegación. Estos datos son vitales para calcular tiempos de llegada, activar alertas de geovalla (geofencing), y optimizar sus rutas logísticas en tiempo real. Los datos de ubicación se almacenan durante 24 horas y posteriormente son anonimizados."
         },
         {
             icon: Eye,
-            title: "Visibilidad de Flota",
-            content: "Su posición puede ser compartida de forma anónima con otros miembros de su organización bajo el modo 'Monillos'. Esto permite una coordinación transparente, similar a la visualización de tráfico en plataformas sociales."
+            title: "Finalidades del Tratamiento",
+            content: "Sus datos son utilizados para: (1) Optimización inteligente de rutas de entrega y recolección, (2) Cálculo de tiempos estimados de llegada, (3) Funcionalidad de seguimiento de flota ('Monillos'), (4) Procesamiento de suscripciones y pagos, (5) Envío de alertas de emergencia SOS, (6) Mejora continua de nuestros algoritmos, (7) Comunicación de actualizaciones del servicio."
         },
         {
             icon: CreditCard,
             title: "Seguridad Financiera",
-            content: "Los pagos son procesados íntegramente por Stripe. HormiRuta no almacena ni tiene acceso a sus números de tarjeta de crédito o códigos de seguridad. Solo recibimos confirmación de la transacción exitosa."
+            content: "Los pagos son procesados íntegramente por Stripe, Inc. HormiRuta NUNCA almacena, procesa ni tiene acceso a números de tarjeta de crédito, CVV o datos bancarios. Solo recibimos confirmación de transacciones exitosas y el identificador de suscripción. La suscripción mensual de $199 MXN es recurrente y puede cancelarse en cualquier momento desde la sección 'Mi Suscripción' en Configuración."
         },
         {
             icon: Shield,
-            title: "Protección de Datos",
-            content: "Utilizamos cifrado de grado militar (AES-256) para proteger la información de sus paradas, clientes y rutas guardadas. Sus datos nunca serán vendidos a terceros para fines publicitarios."
+            title: "Medidas de Seguridad",
+            content: "Implementamos cifrado AES-256 para datos en reposo, comunicaciones protegidas mediante TLS 1.3, autenticación de dos factores disponible, monitoreo continuo de accesos, y políticas de retención mínima de datos. Sus datos nunca serán vendidos a terceros para fines publicitarios o de marketing."
+        },
+        {
+            icon: Globe,
+            title: "Transferencias de Datos",
+            content: "Sus datos pueden ser transferidos a: Stripe Inc. (procesamiento de pagos, EE.UU.), Google Cloud Platform (alojamiento de servidores), MongoDB Atlas (base de datos). Todas las transferencias cumplen con estándares internacionales de protección de datos y cuentan con acuerdos de confidencialidad."
+        },
+        {
+            icon: Lock,
+            title: "Derechos ARCO",
+            content: "Usted tiene derecho a Acceder, Rectificar, Cancelar u Oponerse al tratamiento de sus datos personales (derechos ARCO). Para ejercer estos derechos, envíe su solicitud a soporte@hormiruta.com indicando su nombre completo, correo registrado en la plataforma, y la descripción clara del derecho que desea ejercer. Responderemos en un plazo máximo de 20 días hábiles."
         }
     ];
 
@@ -57,7 +77,7 @@ export default function PrivacyPage() {
                         </div>
                         <div>
                             <h1 className="text-2xl font-black italic tracking-tighter uppercase">Privacidad</h1>
-                            <p className="text-[10px] text-info font-bold uppercase tracking-[0.3em]">Guardian v1.0</p>
+                            <p className="text-[10px] text-info font-bold uppercase tracking-[0.3em]">Aviso de Privacidad Integral</p>
                         </div>
                     </div>
                 </div>
@@ -70,13 +90,13 @@ export default function PrivacyPage() {
                 >
                     <div className="space-y-4">
                         <div className="inline-block px-4 py-1.5 bg-info/10 border border-info/20 rounded-full">
-                            <span className="text-[10px] font-black text-info uppercase tracking-widest">Compromiso de Transparencia</span>
+                            <span className="text-[10px] font-black text-info uppercase tracking-widest">Última actualización: Marzo 2026</span>
                         </div>
-                        <h2 className="text-4xl font-black italic tracking-tight uppercase leading-none">Aviso de Privacidad <br /><span className="text-info">y Seguridad de Datos</span></h2>
+                        <h2 className="text-4xl font-black italic tracking-tight uppercase leading-none">Aviso de Privacidad <br /><span className="text-info">Integral</span></h2>
                     </div>
 
                     <p className="text-white/40 text-sm leading-relaxed max-w-2xl">
-                        En HormiRuta, entendemos que su información logística es el corazón de su negocio. Nos comprometemos a proteger cada coordenada y cada dato personal con los más altos estándares de seguridad tecnológica.
+                        En HormiRuta, entendemos que su información logística es el corazón de su negocio. Nos comprometemos a proteger cada coordenada y cada dato personal con los más altos estándares de seguridad tecnológica. Este aviso de privacidad describe cómo recopilamos, usamos y protegemos su información de acuerdo con la legislación mexicana vigente.
                     </p>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -101,13 +121,26 @@ export default function PrivacyPage() {
                         ))}
                     </div>
 
+                    {/* Consent Section */}
+                    <div className="p-8 bg-info/5 border border-info/20 rounded-[32px]">
+                        <div className="flex items-start gap-4">
+                            <AlertTriangle className="w-6 h-6 text-info shrink-0 mt-1" />
+                            <div>
+                                <h3 className="text-sm font-black uppercase tracking-tight mb-3 text-white">Consentimiento</h3>
+                                <p className="text-white/40 text-xs leading-relaxed">
+                                    Al registrarse y utilizar HormiRuta, usted otorga su consentimiento expreso para el tratamiento de sus datos personales conforme a lo descrito en este Aviso de Privacidad. Si no está de acuerdo con alguna de las finalidades descritas, puede solicitar la revocación de su consentimiento enviando un correo a soporte@hormiruta.com.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="pt-12 border-t border-white/5 flex flex-col lg:flex-row items-center justify-between gap-8 text-center lg:text-left">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center border border-white/10">
                                 <Mail className="w-5 h-5 text-info" />
                             </div>
                             <div>
-                                <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">Centro de Ayuda:</p>
+                                <p className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">Datos Personales y ARCO:</p>
                                 <p className="text-base font-black text-white italic">soporte@hormiruta.com</p>
                             </div>
                         </div>
@@ -117,7 +150,7 @@ export default function PrivacyPage() {
                                 href="/terms"
                                 className="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all"
                             >
-                                <span className="text-[10px] font-black uppercase tracking-widest">Términos de Uso</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest">Términos y Condiciones</span>
                             </Link>
                         </div>
                     </div>
@@ -125,7 +158,7 @@ export default function PrivacyPage() {
 
                 {/* Footer Copy */}
                 <p className="text-center mt-12 text-[10px] font-bold text-white/20 uppercase tracking-[0.4em]">
-                    Cuidamos tus datos. HormiRuta © 2026.
+                    Cuidamos tus datos. HormiRuta © {new Date().getFullYear()} — Jandosoft.
                 </p>
             </div>
         </div>

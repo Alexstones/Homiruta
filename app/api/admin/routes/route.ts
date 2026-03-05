@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/app/lib/mongodb';
-import Route from '@/app/models/Route';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/lib/auth';
+import { supabase } from '@/app/lib/supabaseClient';
 
 export async function GET(req: Request) {
     try {
@@ -15,13 +14,22 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const userId = searchParams.get('userId');
 
-        await dbConnect();
+        let query = supabase
+            .from('routes')
+            .select(`
+                *,
+                user:users (name, email),
+                stops (*)
+            `)
+            .order('date', { ascending: false });
 
-        const filter = userId ? { userId } : {};
+        if (userId) {
+            query = query.eq('user_id', userId);
+        }
 
-        const routes = await Route.find(filter)
-            .populate('userId', 'name email')
-            .sort({ date: -1 });
+        const { data: routes, error } = await query;
+
+        if (error) throw error;
 
         return NextResponse.json(routes);
     } catch (error) {
@@ -29,3 +37,4 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
+

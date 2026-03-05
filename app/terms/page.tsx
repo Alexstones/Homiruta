@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Lock, FileText, ChevronLeft, Scale, Users, Globe, ExternalLink } from 'lucide-react';
+import { Shield, Lock, FileText, ChevronLeft, Scale, Users, Globe, CreditCard, AlertTriangle, Ban, Gavel, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -11,29 +11,59 @@ export default function TermsPage() {
 
     const sections = [
         {
+            icon: FileText,
+            title: "Descripción del Servicio",
+            content: "HormiRuta es una plataforma SaaS de optimización de rutas logísticas que permite a conductores y empresas de reparto planificar, optimizar y ejecutar sus entregas de forma eficiente. El servicio incluye optimización con tráfico en tiempo real, seguimiento GPS, alertas de geovalla, y herramientas de gestión de flota."
+        },
+        {
+            icon: CreditCard,
+            title: "Suscripciones y Facturación",
+            content: "HormiRuta ofrece un plan gratuito (limitado a 10 paradas por ruta) y planes de suscripción mensual recurrente: Plan Premium ($199 MXN/mes) con paradas ilimitadas, y Plan Flotilla ($899 MXN/mes) con gestión multiusuario. El cobro se realiza automáticamente cada mes a través de Stripe. Los precios incluyen IVA. El primer cargo se realiza al momento de la suscripción."
+        },
+        {
+            icon: RefreshCw,
+            title: "Cancelación y Reembolsos",
+            content: "Puede cancelar su suscripción en cualquier momento desde Configuración > Mi Suscripción. La cancelación será efectiva al final del periodo de facturación actual; usted mantendrá acceso completo hasta esa fecha. No se otorgan reembolsos por periodos parciales. Tras la cancelación, su cuenta regresará al plan gratuito con límite de 10 paradas."
+        },
+        {
             icon: Shield,
-            title: "Uso del Servicio",
-            content: "HormiRuta es una plataforma diseñada para la optimización de rutas logísticas. El usuario se compromete a utilizar la aplicación de manera responsable y exclusivamente para fines lícitos relacionados con la gestión de entregas y transporte."
+            title: "Uso Aceptable",
+            content: "El usuario se compromete a utilizar HormiRuta exclusivamente para fines lícitos relacionados con logística y transporte. Queda prohibido: (a) usar el servicio para actividades ilegales, (b) intentar acceder a cuentas de otros usuarios, (c) realizar ingeniería inversa del software, (d) sobrecargar deliberadamente los servidores, (e) revender el acceso al servicio sin autorización."
         },
         {
             icon: Users,
             title: "Cuentas de Usuario",
-            content: "Para acceder a ciertas funciones, es necesario crear una cuenta. Usted es responsable de mantener la confidencialidad de sus credenciales y de todas las actividades que ocurran bajo su cuenta. Nos reservamos el derecho de suspender cuentas por uso indebido."
+            content: "Para acceder a ciertas funciones es necesario crear una cuenta. Usted es responsable de mantener la confidencialidad de sus credenciales y de todas las actividades que ocurran bajo su cuenta. Debe notificar inmediatamente cualquier uso no autorizado. Nos reservamos el derecho de suspender o terminar cuentas por violación de estos términos sin previo aviso."
         },
         {
             icon: Scale,
             title: "Propiedad Intelectual",
-            content: "Todos los algoritmos de optimización, diseños de interfaz, logotipos y software son propiedad exclusiva de HormiRuta. Queda prohibida la reproducción total o parcial del código o diseño sin autorización expresa."
+            content: "Todos los algoritmos de optimización de rutas, diseños de interfaz, logotipos, marcas registradas y código fuente son propiedad exclusiva de HormiRuta / Jandosoft. Queda prohibida la reproducción, distribución o modificación total o parcial del software sin autorización expresa por escrito. El usuario conserva la propiedad de sus datos ingresados (direcciones, contactos, rutas)."
+        },
+        {
+            icon: AlertTriangle,
+            title: "Limitación de Responsabilidad",
+            content: "HormiRuta proporciona el servicio 'tal cual' (as-is). No garantizamos: (a) disponibilidad ininterrumpida del servicio, (b) precisión absoluta de las rutas optimizadas, (c) tiempos exactos de llegada. HormiRuta no será responsable por daños indirectos, pérdidas comerciales o retrasos causados por fallos técnicos, problemas de conectividad, o inexactitudes en los datos de Google Maps. La responsabilidad máxima se limita al monto pagado en el último mes de suscripción."
         },
         {
             icon: Globe,
             title: "Datos de Geolocalización",
-            content: "Al utilizar nuestras funciones de navegación, usted consiente el rastreo de su ubicación en tiempo real para la optimización de rutas y la funcionalidad de 'monillos' (seguimiento de flota). Estos datos se anonimizan y se eliminan después de 24 horas de inactividad."
+            content: "Al utilizar funciones de navegación, usted consiente el rastreo de su ubicación en tiempo real para optimización de rutas y seguimiento de flota ('Monillos'). Los datos de ubicación se procesan en tiempo real y se anonimizan después de 24 horas de inactividad. Puede desactivar el seguimiento GPS en cualquier momento desde la configuración de su dispositivo."
+        },
+        {
+            icon: Ban,
+            title: "Terminación",
+            content: "HormiRuta puede suspender o terminar su acceso al servicio inmediatamente si: (a) viola estos términos, (b) no realiza pagos por su suscripción, (c) utiliza el servicio para actividades fraudulentas. En caso de terminación, sus datos se conservarán por 30 días para posible recuperación, y posteriormente serán eliminados de forma irreversible."
+        },
+        {
+            icon: Gavel,
+            title: "Jurisdicción y Ley Aplicable",
+            content: "Estos términos se rigen por las leyes de los Estados Unidos Mexicanos. Cualquier controversia será sometida a los tribunales competentes de la Ciudad de México, renunciando a cualquier otro fuero que pudiera corresponderle por razón de domicilio presente, futuro o cualquier otra causa."
         },
         {
             icon: FileText,
             title: "Modificaciones",
-            content: "Nos reservamos el derecho de modificar estos términos en cualquier momento. El uso continuado de la plataforma tras dichos cambios constituye la aceptación de los nuevos términos."
+            content: "Nos reservamos el derecho de modificar estos términos en cualquier momento. Las modificaciones serán notificadas a través de la aplicación y/o por correo electrónico con al menos 15 días de anticipación. El uso continuado de la plataforma tras la fecha efectiva de los cambios constituye la aceptación de los nuevos términos."
         }
     ];
 
@@ -62,7 +92,7 @@ export default function TermsPage() {
                         </div>
                         <div>
                             <h1 className="text-2xl font-black italic tracking-tighter uppercase">Términos</h1>
-                            <p className="text-[10px] text-info font-bold uppercase tracking-[0.3em]">HormiRuta v2.5</p>
+                            <p className="text-[10px] text-info font-bold uppercase tracking-[0.3em]">Acuerdo Legal v2.5</p>
                         </div>
                     </div>
                 </div>
@@ -75,10 +105,14 @@ export default function TermsPage() {
                 >
                     <div className="space-y-4">
                         <div className="inline-block px-4 py-1.5 bg-info/10 border border-info/20 rounded-full">
-                            <span className="text-[10px] font-black text-info uppercase tracking-widest">Última actualización: Febrero 2026</span>
+                            <span className="text-[10px] font-black text-info uppercase tracking-widest">Última actualización: Marzo 2026</span>
                         </div>
-                        <h2 className="text-4xl font-black italic tracking-tight uppercase leading-none">Acuerdo de Servicio y <br /><span className="text-info">Responsabilidad Logística</span></h2>
+                        <h2 className="text-4xl font-black italic tracking-tight uppercase leading-none">Términos y Condiciones <br /><span className="text-info">del Servicio</span></h2>
                     </div>
+
+                    <p className="text-white/40 text-sm leading-relaxed max-w-3xl">
+                        Al acceder y utilizar la aplicación HormiRuta, usted acepta estar sujeto a estos Términos y Condiciones. Si no está de acuerdo con alguno de estos términos, le solicitamos no utilizar el servicio. Estos términos constituyen un acuerdo legal vinculante entre usted y Jandosoft (en adelante, &quot;HormiRuta&quot;).
+                    </p>
 
                     <div className="grid grid-cols-1 gap-8">
                         {sections.map((section, idx) => (
@@ -86,7 +120,7 @@ export default function TermsPage() {
                                 key={idx}
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: idx * 0.1 }}
+                                transition={{ delay: idx * 0.08 }}
                                 className="flex gap-6 group"
                             >
                                 <div className="shrink-0 w-14 h-14 bg-white/5 border border-white/10 rounded-[22px] flex items-center justify-center group-hover:bg-info/10 group-hover:border-info/30 transition-all">
@@ -94,6 +128,7 @@ export default function TermsPage() {
                                 </div>
                                 <div className="space-y-3">
                                     <h3 className="text-lg font-black uppercase tracking-tight italic flex items-center gap-3">
+                                        <span className="text-white/20 text-sm font-mono">{String(idx + 1).padStart(2, '0')}</span>
                                         {section.title}
                                         <div className="w-1.5 h-1.5 bg-info rounded-full shadow-[0_0_10px_rgba(49,204,236,1)]" />
                                     </h3>
@@ -112,12 +147,11 @@ export default function TermsPage() {
                         </div>
                         <Link
                             href="/privacy"
-                            className="px-10 py-5 bg-white/5 border border-white/10 rounded-2xl hover:bg-white text-dark group transition-all"
+                            className="px-10 py-5 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group"
                         >
                             <div className="flex items-center gap-3">
-                                <Lock className="w-5 h-5 text-info group-hover:text-dark transition-colors" />
-                                <span className="text-xs font-black uppercase tracking-widest group-hover:text-dark transition-colors">Aviso de Privacidad</span>
-                                <ExternalLink className="w-4 h-4 text-white/20 group-hover:text-dark/40 transition-colors" />
+                                <Lock className="w-5 h-5 text-info" />
+                                <span className="text-xs font-black uppercase tracking-widest">Aviso de Privacidad</span>
                             </div>
                         </Link>
                     </div>
@@ -125,7 +159,7 @@ export default function TermsPage() {
 
                 {/* Footer Copy */}
                 <p className="text-center mt-12 text-[10px] font-bold text-white/20 uppercase tracking-[0.4em]">
-                    Copyright © 2026 HormiRuta Technologies Inc. Todos los derechos reservados.
+                    Copyright © {new Date().getFullYear()} HormiRuta — Jandosoft. Todos los derechos reservados.
                 </p>
             </div>
         </div>

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { hash } from 'bcryptjs';
-import dbConnect from '../../lib/mongodb';
-import User from '../../models/User';
+import { supabase } from '../../lib/supabaseClient';
 
 export async function POST(req: Request) {
     try {
@@ -15,10 +14,13 @@ export async function POST(req: Request) {
             );
         }
 
-        await dbConnect();
+        // Check if user exists in Supabase
+        const { data: existingUser, error: fetchError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', email)
+            .single();
 
-        // Check if user exists
-        const existingUser = await User.findOne({ email });
         if (existingUser) {
             return NextResponse.json(
                 { message: 'Este correo ya está registrado.' },
@@ -29,15 +31,30 @@ export async function POST(req: Request) {
         // Hash password
         const hashedPassword = await hash(password, 12);
 
-        // Create user
-        const user = await User.create({
-            name,
-            email,
-            password: hashedPassword,
-        });
+        // Create user in Supabase
+        const { data: newUser, error: createError } = await supabase
+            .from('users')
+            .insert({
+                name,
+                email,
+                password_hash: hashedPassword,
+                role: 'user',
+                plan: 'free',
+                subscription_status: 'none'
+            })
+            .select('*')
+            .single();
+
+        if (createError) {
+            console.error('[AUTH] Supabase user creation error:', createError);
+            return NextResponse.json(
+                { message: 'Error al crear el usuario en la base de datos' },
+                { status: 500 }
+            );
+        }
 
         return NextResponse.json(
-            { message: 'Usuario creado exitosamente', user: { id: user._id, email: user.email, name: user.name } },
+            { message: 'Usuario creado exitosamente', user: { id: newUser.id, email: newUser.email, name: newUser.name } },
             { status: 201 }
         );
     } catch (error: any) {
@@ -48,3 +65,4 @@ export async function POST(req: Request) {
         );
     }
 }
+

@@ -1,10 +1,7 @@
 import { NextResponse } from 'next/server';
-import dbConnect from '@/app/lib/mongodb';
-import User from '@/app/models/User';
-import Route from '@/app/models/Route';
-import Expense from '@/app/models/Expense';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/lib/auth';
+import { supabase } from '@/app/lib/supabaseClient';
 
 export async function DELETE(
     req: Request,
@@ -19,20 +16,14 @@ export async function DELETE(
 
         const { id: userId } = await params;
 
-        await dbConnect();
+        // Note: Relation constraints with ON DELETE CASCADE in Supabase 
+        // will automatically handle related expenses, routes, and stops.
+        const { error } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', userId);
 
-        // 1. Delete all expenses related to this user
-        await Expense.deleteMany({ driverId: userId });
-
-        // 2. Delete all routes related to this user
-        await Route.deleteMany({ userId: userId });
-
-        // 3. Delete the user
-        const deletedUser = await User.findByIdAndDelete(userId);
-
-        if (!deletedUser) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
-        }
+        if (error) throw error;
 
         return NextResponse.json({ message: 'User and all associated data deleted successfully' });
     } catch (error) {
@@ -40,4 +31,4 @@ export async function DELETE(
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
-// Force update comment: 2026-02-03-19-33
+
