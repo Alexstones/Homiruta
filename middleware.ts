@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { withAuth } from "next-auth/middleware"
+import { getToken } from "next-auth/jwt"
 
 // --- SISTEMA DE CONTROL DE TRÁFICO (Rate Limiting) ---
 const ipCache = new Map<string, { count: number, resetTime: number }>();
-const RATE_LIMIT = 20;
+const RATE_LIMIT = 30; // Slightly increased for development
 const WINDOW_MS = 60 * 1000;
 
 function isRateLimited(ip: string): boolean {
@@ -18,47 +18,73 @@ function isRateLimited(ip: string): boolean {
     return record.count > RATE_LIMIT;
 }
 
-export default withAuth(
-    function middleware(req) {
-        const path = req.nextUrl.pathname;
-        const query = req.nextUrl.search;
-        const ip = req.headers.get('x-forwarded-for') || 'unknown';
+export async function middleware(req: NextRequest) {
+    const path = req.nextUrl.pathname;
+    const query = req.nextUrl.search;
+    const ip = req.headers.get('x-forwarded-for') || 'unknown';
 
-        // 1. SISTEMA DE BLINDAJE (WAF)
-        const maliciousPatterns = [
-            /<script/i,
-            /UNION SELECT/i,
-            /\.\.\//,
-            /etc\/passwd/i
-        ];
-        const isMalicious = maliciousPatterns.some(pattern =>
-            pattern.test(decodeURIComponent(path)) || pattern.test(decodeURIComponent(query))
-        );
+    // 1. SISTEMA DE BLINDAJE (WAF) - Activo para TODOS los visitantes
+    const maliciousPatterns = [
+        /<script/i,
+        /UNION SELECT/i,
+        /\.\.\//,
+        /etc\/passwd/i
+    ];
+    const isMalicious = maliciousPatterns.some(pattern =>
+        pattern.test(decodeURIComponent(path)) || pattern.test(decodeURIComponent(query))
+    );
 
-        if (isMalicious) {
-            console.error(`[SECURITY_SHIELD] Bloqueo de petición sospechosa en ${path} desde IP: ${ip}`);
-            return new NextResponse(null, { status: 403 });
-        }
-
-        // 2. RATE LIMITING PARA RUTAS SENSIBLES
-        if (path.startsWith('/api/auth') || path.startsWith('/api/register')) {
-            if (isRateLimited(ip)) {
-                console.warn(`[SECURITY_BRUTEFORCE] Bloqueo por exceso de peticiones desde IP: ${ip} en ${path}`);
-                return new NextResponse(JSON.stringify({ error: 'Demasiadas peticiones. Intenta más tarde.' }), {
-                    status: 429,
-                    headers: { 'Content-Type': 'application/json' }
-                });
-            }
-        }
-
-        console.log(`[ACCESS] ${req.nextauth.token ? 'AUTH' : 'GUEST'} -> ${path}`);
-        return NextResponse.next();
-    },
-    {
-        pages: {
-            signIn: "/auth/login",
-        },
+    if (isMalicious) {
+        console.error(`[SECURITY_SHIELD] Bloqueo de petición sospechosa en ${path} desde IP: ${ip}`);
+        return new NextResponse(null, { status: 403 });
     }
-)
 
-export const config = { matcher: ["/dashboard/:path*", "/admin/:path*", "/api/auth/:path*", "/api/register/:path*"] }
+    // 2. RATE LIMITING PARA RUTAS SENSIBLES - Activo para TODOS los visitantes
+    if (path.startsWith('/api/auth') || path.startsWith('/api/register')) {
+        if (isRateLimited(ip)) {
+            console.warn(`[SECURITY_BRUTEFORCE] Bloqueo por exceso de peticiones desde IP: ${ip} en ${path}`);
+            return new NextResponse(JSON.stringify({ error: 'Demasiadas peticiones. Intenta más tarde.' }), {
+                status: 429,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+    }
+
+    // 3. CONTROL DE ACCESO (PROTECCIÓN DE RUTAS)
+    // Definimos qué rutas requieren login
+    const isProtectedPath =
+        path.startsWith('/dashboard') ||
+        path.startsWith('/admin') ||
+        (path.startsWith('/api/admin') && !path.includes('seed-init'));
+
+    if (isProtectedPath) {
+        const token = await getToken({
+            req,
+            secret: process.env.NEXTAUTH_SECRET
+        });
+
+        if (!token) {
+            console.log(`[AUTH_REDIRECT] Intento de acceso no autorizado a ${path}. Redirigiendo a login.`);
+            const url = req.nextUrl.clone();
+            url.pathname = '/auth/login';
+            url.searchParams.set('callbackUrl', path);
+            return NextResponse.redirect(url);
+        }
+
+        console.log(`[ACCESS] AUTH_USER(${token.email}) -> ${path}`);
+    } else {
+        // console.log(`[ACCESS] GUEST -> ${path}`);
+    }
+
+    return NextResponse.next();
+}
+
+export const config = {
+    matcher: [
+        "/dashboard/:path*",
+        "/admin/:path*",
+        "/api/admin/:path*",
+        "/api/register",
+        "/api/auth/:path*"
+    ]
+}
