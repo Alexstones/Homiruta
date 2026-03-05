@@ -64,7 +64,16 @@ export async function middleware(req: NextRequest) {
         });
 
         if (!token) {
-            console.log(`[AUTH_REDIRECT] Intento de acceso no autorizado a ${path}. Redirigiendo a login.`);
+            console.log(`[AUTH_BLOCK] Unauthenticated access to ${path}.`);
+
+            // If it's an API route, return 401 JSON instead of a redirect
+            if (path.startsWith('/api/')) {
+                return new NextResponse(
+                    JSON.stringify({ error: 'No autorizado. Por favor inicia sesión.' }),
+                    { status: 401, headers: { 'Content-Type': 'application/json' } }
+                );
+            }
+
             const url = req.nextUrl.clone();
             url.pathname = '/auth/login';
             url.searchParams.set('callbackUrl', path);

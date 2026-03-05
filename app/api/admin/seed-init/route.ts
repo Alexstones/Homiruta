@@ -8,6 +8,16 @@ export async function GET() {
     try {
         const adminEmail = 'admin@hormiruta.com';
 
+        const { data: envCheck } = await supabase.from('users').select('id').limit(1);
+
+        // Si el cliente está usando el placeholder, fallará
+        if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder') || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+            return NextResponse.json({
+                error: 'Ambiente no configurado',
+                message: 'Las variables de Supabase no están configuradas en Vercel. Por favor agrégalas y haz un REDEPLOY.'
+            }, { status: 500 });
+        }
+
         const { data: existingAdmin, error: fetchError } = await supabase
             .from('users')
             .select('id')
