@@ -43,3 +43,7 @@ next-env.d.ts
 
 hormiruta-62b1a-firebase-adminsdk-fbsvc-78ee547009.json
 .env.local
+tmp_*.js
+tmp_*.ts
+.env
+.env.local
