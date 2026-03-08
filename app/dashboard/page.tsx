@@ -25,6 +25,7 @@ import PricingModal from '../components/PricingModal';
 import SubscriptionManager from '../components/SubscriptionManager';
 import BottomSheet from '../components/BottomSheet';
 import RevolverBlocks from '../components/RevolverBlocks';
+import OnboardingTour, { shouldShowOnboarding } from '../components/OnboardingTour';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { cn } from '../lib/utils';
@@ -519,6 +520,45 @@ export default function Dashboard() {
     }, [activeModal, isMobileMenuOpen, viewMode]);
 
     const [showConfetti, setShowConfetti] = useState(false);
+    const [showOnboarding, setShowOnboarding] = useState(false);
+    const [stopFilter, setStopFilter] = useState<'all' | 'pending' | 'completed' | 'failed'>('all');
+
+    // Init onboarding on first visit (only client-side)
+    useEffect(() => {
+        if (status === 'authenticated' && shouldShowOnboarding()) {
+            // Small delay so dashboard renders first
+            const t = setTimeout(() => setShowOnboarding(true), 800);
+            return () => clearTimeout(t);
+        }
+    }, [status]);
+
+    // CSV Export helper
+    const handleExportCSV = () => {
+        if (stops.length === 0) return;
+        const header = 'Orden,Dirección,Cliente,Teléfono,Estado,Tipo,Paquetes,Ventana Horaria,Notas';
+        const rows = stops
+            .sort((a, b) => a.order - b.order)
+            .map(s => [
+                s.order,
+                `"${(s.address || '').replace(/"/g, '""')}"`,
+                `"${(s.customerName || '').replace(/"/g, '""')}"`,
+                s.phone || '',
+                s.isCompleted ? 'Completada' : s.isFailed ? 'Fallida' : 'Pendiente',
+                s.taskType === 'COLLECTION' ? 'Recogida' : 'Entrega',
+                s.numPackages || 1,
+                `"${(s.timeWindow || 'Cualquier hora').replace(/"/g, '""')}"`,
+                `"${(s.notes || '').replace(/"/g, '""')}"`
+            ].join(','));
+        const csv = [header, ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `hormiruta_${routeName || 'ruta'}_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+        setNotification('✅ CSV exportado correctamente');
+    };
 
     const handleCompleteStop = useCallback((id: string, isFailed: boolean = false) => {
         setStops(prevStops => {
@@ -1689,25 +1729,61 @@ export default function Dashboard() {
                                 </div>
                             }
                             block2={
-                                <Timeline
-                                    stops={stops}
-                                    onReorder={handleReorder}
-                                    onNavigate={(stop: any) => {
-                                        setActiveStop(stop);
-                                        setActiveModal('navigation-choice');
-                                        setIsGpsActive(true);
-                                        setMapCenter({ lat: stop.lat, lng: stop.lng } as any);
-                                        setNotification(`Selecciona Navegador para ${stop.address || 'destino'}`);
-                                    }}
-                                    onEdit={(stop: any) => {
-                                        setActiveStop(stop);
-                                        setActiveModal('edit-stop');
-                                    }}
-                                    onComplete={handleCompleteStop}
-                                    onDuplicate={handleDuplicateStop}
-                                    onRemove={handleRemoveStop}
-                                    onRevert={handleRevertStop}
-                                />
+                                <div className="flex flex-col h-full">
+                                    {/* Filter chips */}
+                                    <div className="flex gap-1.5 mb-3 px-1">
+                                        {([
+                                            { key: 'all' as const, label: 'Todas', count: stops.length, color: 'info' },
+                                            { key: 'pending' as const, label: 'Pend.', count: stops.filter(s => !s.isCompleted && !s.isFailed).length, color: 'yellow' },
+                                            { key: 'completed' as const, label: 'Listas', count: stops.filter(s => s.isCompleted).length, color: 'green' },
+                                            { key: 'failed' as const, label: 'Fallidas', count: stops.filter(s => s.isFailed).length, color: 'red' },
+                                        ]).map(f => (
+                                            <button
+                                                key={f.key}
+                                                onClick={() => setStopFilter(f.key)}
+                                                className={cn(
+                                                    'flex-1 py-2 rounded-xl text-[7px] font-black uppercase tracking-wider transition-all flex flex-col items-center gap-0.5',
+                                                    stopFilter === f.key
+                                                        ? f.key === 'completed' ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                                                            : f.key === 'failed' ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                                                : f.key === 'pending' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                                                                    : 'bg-info/20 text-info border border-info/30'
+                                                        : 'bg-white/5 text-white/20 border border-white/5 hover:bg-white/10'
+                                                )}
+                                            >
+                                                <span className="text-sm font-black leading-none">{f.count}</span>
+                                                {f.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {/* Filtered list */}
+                                    <div className="flex-1 overflow-auto">
+                                        <Timeline
+                                            stops={stops.filter(s =>
+                                                stopFilter === 'all' ? true :
+                                                    stopFilter === 'pending' ? (!s.isCompleted && !s.isFailed) :
+                                                        stopFilter === 'completed' ? s.isCompleted :
+                                                            s.isFailed
+                                            )}
+                                            onReorder={handleReorder}
+                                            onNavigate={(stop: any) => {
+                                                setActiveStop(stop);
+                                                setActiveModal('navigation-choice');
+                                                setIsGpsActive(true);
+                                                setMapCenter({ lat: stop.lat, lng: stop.lng } as any);
+                                                setNotification(`Selecciona Navegador para ${stop.address || 'destino'}`);
+                                            }}
+                                            onEdit={(stop: any) => {
+                                                setActiveStop(stop);
+                                                setActiveModal('edit-stop');
+                                            }}
+                                            onComplete={handleCompleteStop}
+                                            onDuplicate={handleDuplicateStop}
+                                            onRemove={handleRemoveStop}
+                                            onRevert={handleRevertStop}
+                                        />
+                                    </div>
+                                </div>
                             }
                             block3={
                                 <div className="flex flex-col items-center justify-center gap-6 py-8">
@@ -2100,6 +2176,14 @@ export default function Dashboard() {
                                                     Finalizar y Cerrar
                                                 </button>
                                                 <div className="flex gap-3">
+                                                    <button
+                                                        onClick={handleExportCSV}
+                                                        disabled={stops.length === 0}
+                                                        className="flex-1 py-4 bg-white/5 text-info/80 rounded-2xl text-[9px] font-black uppercase tracking-widest border border-info/20 hover:bg-info/10 transition-all disabled:opacity-30 flex items-center justify-center gap-2"
+                                                    >
+                                                        <FileText className="w-3.5 h-3.5" />
+                                                        Exportar CSV
+                                                    </button>
                                                     <button
                                                         onClick={() => {
                                                             const newStops = stops.map(s => ({ ...s, id: Math.random().toString(36).substr(2, 9), isCompleted: false, isFailed: false, isCurrent: false }));
@@ -3031,6 +3115,11 @@ export default function Dashboard() {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Onboarding Tour — shown only on first visit */}
+            {showOnboarding && (
+                <OnboardingTour onComplete={() => setShowOnboarding(false)} />
+            )}
 
         </motion.div >
     );

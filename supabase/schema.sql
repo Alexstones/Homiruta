@@ -26,6 +26,8 @@ create table users (
   stripe_customer_id text,
   stripe_subscription_id text,
   subscription_end_date timestamp with time zone,
+  reset_token text,
+  reset_token_expiry timestamp with time zone,
   created_at timestamp with time zone default now()
 );
 

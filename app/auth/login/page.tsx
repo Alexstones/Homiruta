@@ -5,6 +5,7 @@ import { signIn, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { Capacitor } from '@capacitor/core';
@@ -199,7 +200,7 @@ function LoginContent() {
                                     <input type="checkbox" className="rounded border-slate-600 bg-slate-800 text-primary focus:ring-offset-slate-900" />
                                     Recordarme
                                 </label>
-                                <a href="#" className="text-accent hover:text-sky-300 transition-colors font-medium">¿Olvidaste tu contraseña?</a>
+                                <Link href="/auth/forgot-password" className="text-accent hover:text-sky-300 transition-colors font-medium">¿Olvidaste tu contraseña?</Link>
                             </div>
                         </div>
 

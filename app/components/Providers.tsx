@@ -13,7 +13,7 @@ if (!GOOGLE_MAPS_API_KEY) {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY!}>
       <SessionProvider>{children}</SessionProvider>
     </APIProvider>
   );
