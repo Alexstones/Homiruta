@@ -2,7 +2,7 @@ import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
-import { supabase } from "./supabaseClient";
+import { supabaseAdmin } from "./supabaseAdmin";
 import { initFirebaseAdmin } from "@/app/lib/firebase-admin";
 
 export const authOptions: NextAuthOptions = {
@@ -38,8 +38,8 @@ export const authOptions: NextAuthOptions = {
                             return null;
                         }
 
-                        // Find or create user in Supabase
-                        let { data: user, error } = await supabase
+                        // Find or create user in Supabase using admin client (bypasses RLS)
+                        let { data: user, error } = await supabaseAdmin
                             .from('users')
                             .select('*')
                             .eq('email', email)
@@ -47,7 +47,7 @@ export const authOptions: NextAuthOptions = {
 
                         if (error && error.code === 'PGRST116') { // Not found
                             console.log("[AUTH] Creating new user profile in Supabase for:", email);
-                            const { data: newUser, error: createError } = await supabase
+                            const { data: newUser, error: createError } = await supabaseAdmin
                                 .from('users')
                                 .insert({
                                     email,
@@ -92,31 +92,50 @@ export const authOptions: NextAuthOptions = {
 
                 // 2. Standard Email/Password Flow
                 if (!credentials?.email || !credentials?.password) {
+                    console.error("[AUTH] Missing email or password");
                     return null;
                 }
 
+                const emailNormalized = credentials.email.toLowerCase().trim();
+
                 try {
-                    const { data: user, error } = await supabase
+                    console.log("[AUTH] Credentials login attempt for:", emailNormalized);
+
+                    // Check env vars
+                    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+                        console.error("[AUTH] CRITICAL: Missing Supabase env vars!");
+                        throw new Error("Supabase not configured");
+                    }
+
+                    const { data: user, error } = await supabaseAdmin
                         .from('users')
-                        .select('*')
-                        .eq('email', credentials.email)
+                        .select('id, email, name, image, password_hash, sos_contact, role, subscription_status, plan, preferred_map_app, vehicle_type')
+                        .eq('email', emailNormalized)
                         .single();
 
-                    if (error || !user) {
-                        console.error("[AUTH] User not found or Supabase error:", error);
+                    if (error) {
+                        console.error("[AUTH] Supabase query error:", JSON.stringify(error));
+                        return null;
+                    }
+
+                    if (!user) {
+                        console.error("[AUTH] User not found:", emailNormalized);
                         return null;
                     }
 
                     if (!user.password_hash) {
-                        console.error("[AUTH] User has no password (maybe oauth user?)");
+                        console.error("[AUTH] User has no password hash (OAuth user?):", emailNormalized);
                         return null;
                     }
 
                     const isValid = await compare(credentials.password, user.password_hash);
 
                     if (!isValid) {
+                        console.error("[AUTH] Invalid password for:", emailNormalized);
                         return null;
                     }
+
+                    console.log("[AUTH] Login successful for:", emailNormalized);
 
                     return {
                         id: user.id,
@@ -130,8 +149,8 @@ export const authOptions: NextAuthOptions = {
                         preferredMapApp: user.preferred_map_app,
                         vehicleType: user.vehicle_type
                     };
-                } catch (error) {
-                    console.error("[AUTH] Authorize error:", error);
+                } catch (error: any) {
+                    console.error("[AUTH] Authorize error:", error.message || error);
                     return null;
                 }
             }
@@ -147,7 +166,7 @@ export const authOptions: NextAuthOptions = {
         async signIn({ user, account }) {
             if (account?.provider === "google") {
                 try {
-                    const { data: existingUser, error } = await supabase
+                    const { data: existingUser, error } = await supabaseAdmin
                         .from('users')
                         .select('id')
                         .eq('email', user.email)
@@ -155,7 +174,7 @@ export const authOptions: NextAuthOptions = {
 
                     if (error && error.code === 'PGRST116') {
                         // Create user for browser-side Google Login
-                        await supabase
+                        await supabaseAdmin
                             .from('users')
                             .insert({
                                 email: user.email,
@@ -209,6 +228,5 @@ export const authOptions: NextAuthOptions = {
 
     },
     secret: process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
-    debug: true,
+    debug: process.env.NODE_ENV === 'development',
 };
-
